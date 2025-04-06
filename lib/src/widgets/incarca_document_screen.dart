@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -34,6 +35,39 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
       setState(() {
         _documentPath = result.files.single.path;
       });
+    }
+  }
+
+  Future<void> _saveDocumentRecord(String answer) async {
+    final url = Uri.parse('http://127.0.0.1:5000/save_document_record');
+    // Folosim numele fișierului ca titlu (poți adapta după necesitate)
+    final String title = _documentPath?.split(Platform.pathSeparator).last ?? 'Document';
+    final recordData = {
+      'title': title,
+      'file_path': _documentPath,
+      'date_uploaded': DateTime.now().toIso8601String(),
+      'question': _questionController.text,
+      'answer': answer,
+      'date_asked': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_token',
+        },
+        body: jsonEncode(recordData),
+      );
+
+      if (response.statusCode != 201) {
+        print("Error saving document record: ${response.body}");
+      } else {
+        print("Document record saved successfully.");
+      }
+    } catch (e) {
+      print("Exception saving document record: $e");
     }
   }
 
@@ -83,9 +117,11 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
         setState(() {
           _backendResponse = 'Răspuns: ${data["answer"]}\nLocație: ${data["location"]}';
         });
+        // Salvează înregistrarea documentului
+        await _saveDocumentRecord(data["answer"]);
       } else {
         setState(() {
-          _errorMessage = 'Eroare de la backend: ${response.statusCode}, ${response.body}' ;
+          _errorMessage = 'Eroare de la backend: ${response.statusCode}, ${response.body}';
         });
       }
     } catch (e) {

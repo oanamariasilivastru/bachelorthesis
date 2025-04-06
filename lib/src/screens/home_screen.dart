@@ -7,6 +7,7 @@ import '../widgets/time_spent_chart.dart';
 import '../widgets/incarca_document_screen.dart';
 import '../screens/chat_pdf_screen.dart';
 import '../screens/genereaza_test_screen.dart';
+import '../screens/document_history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -15,22 +16,46 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   final Map<DateTime, List<Activity>> _activities = {};
   final ApiService _api = ApiService();
+
+  // Pentru monitorizarea timpului petrecut
+  Stopwatch _stopwatch = Stopwatch();
+  Duration _accumulatedTime = Duration.zero;
 
   List<Activity> _getActivitiesForDay(DateTime day) {
     final normalized = DateTime(day.year, day.month, day.day);
     return _activities[normalized] ?? [];
   }
 
-  // Apelul GET se face aici, imediat după logare sau la inițializare
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _stopwatch.start();
     _fetchActivitiesFromBackend();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopwatch.stop();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Când aplicația intră în fundal, oprim cronometru și acumulăm timpul
+    if (state == AppLifecycleState.paused) {
+      _stopwatch.stop();
+      _accumulatedTime += _stopwatch.elapsed;
+    } else if (state == AppLifecycleState.resumed) {
+      _stopwatch.reset();
+      _stopwatch.start();
+    }
   }
 
   Future<void> _fetchActivitiesFromBackend() async {
@@ -170,32 +195,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-void _showAllUpcomingActivities() {
-  final ScrollController scrollController = ScrollController();
-  showDialog(
-    context: context,
-    barrierDismissible: true, // Permite închiderea dialogului făcând click în afara lui
-    builder: (context) {
-      return Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 600,     // ajustează după preferințe
-            maxHeight: 500,    // ajustează după preferințe
+  void _showAllUpcomingActivities() {
+    final ScrollController scrollController = ScrollController();
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          child: UpcomingActivitiesModal(
-            activities: _activities,
-            scrollController: scrollController,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 600,
+              maxHeight: 500,
+            ),
+            child: UpcomingActivitiesModal(
+              activities: _activities,
+              scrollController: scrollController,
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
-
+        );
+      },
+    );
+  }
 
   void _goToIncarcaDocument() {
     Navigator.push(
@@ -252,7 +276,13 @@ void _showAllUpcomingActivities() {
                 SidebarButton(
                   icon: Icons.history_edu,
                   label: "Istoric documente",
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const DocumentHistoryScreen()),
+                  );
+                },
+
                 ),
                 SidebarButton(
                   icon: Icons.history,
@@ -303,7 +333,8 @@ void _showAllUpcomingActivities() {
                               decoration: InputDecoration(
                                 hintText: "Search...",
                                 prefixIcon: const Icon(Icons.search_rounded),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 0),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
                                   borderSide: BorderSide.none,
@@ -532,7 +563,8 @@ void _showAllUpcomingActivities() {
                                       ],
                                     ),
                                     const SizedBox(height: 16),
-                                    if (_selectedDay != null)
+                                    if (_selectedDay != null &&
+                                        _getActivitiesForDay(_selectedDay!).isNotEmpty)
                                       Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -581,8 +613,10 @@ void _showAllUpcomingActivities() {
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    const Expanded(
-                                      child: TimeSpentChart(),
+                                    // Folosește:
+                                    SizedBox(
+                                      height: 300, // sau orice înălțime fixă pe care o dorești
+                                      child: TimeSpentChart(timeSpent: _accumulatedTime),
                                     ),
                                   ],
                                 ),
