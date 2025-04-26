@@ -1,13 +1,21 @@
-import 'package:app/src/services/api_service.dart';
+// lib/src/screens/home_screen.dart
+// ignore_for_file: cascade_invocations
+
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import '../widgets/upcoming_activities_modal.dart';
+
+import 'package:app/src/models/activity.dart';
+import 'package:app/src/services/api_service.dart';
+
 import '../widgets/sidebar_button.dart';
+import '../widgets/upcoming_activities_modal.dart';
 import '../widgets/time_spent_chart.dart';
 import '../widgets/incarca_document_screen.dart';
-import '../screens/chat_pdf_screen.dart';
-import '../screens/genereaza_test_screen.dart';
-import '../screens/document_history_screen.dart';
+
+import 'chat_pdf_screen.dart';
+import 'genereaza_test_screen.dart';
+import 'document_history_screen.dart';
+import 'genereaza_quiz_text_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -16,27 +24,29 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/* =================================================================== */
+/*                       _HomeScreenState                              */
+/* =================================================================== */
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  /* -------------------  state  ------------------- */
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+
+  /// cheie = zi (00:00) → activități
   final Map<DateTime, List<Activity>> _activities = {};
   final ApiService _api = ApiService();
 
-  // Pentru monitorizarea timpului petrecut
-  Stopwatch _stopwatch = Stopwatch();
+  /* pentru grafic */
+  final Stopwatch _stopwatch = Stopwatch();
   Duration _accumulatedTime = Duration.zero;
 
-  List<Activity> _getActivitiesForDay(DateTime day) {
-    final normalized = DateTime(day.year, day.month, day.day);
-    return _activities[normalized] ?? [];
-  }
-
+  /* -------------------  lifecycle  ------------------- */
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _stopwatch.start();
-    _fetchActivitiesFromBackend();
+    _fetchActivities();
   }
 
   @override
@@ -48,45 +58,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Când aplicația intră în fundal, oprim cronometru și acumulăm timpul
     if (state == AppLifecycleState.paused) {
       _stopwatch.stop();
       _accumulatedTime += _stopwatch.elapsed;
     } else if (state == AppLifecycleState.resumed) {
-      _stopwatch.reset();
-      _stopwatch.start();
+      _stopwatch
+        ..reset()
+        ..start();
     }
   }
 
-  Future<void> _fetchActivitiesFromBackend() async {
+  /* -------------------  api  ------------------- */
+  Future<void> _fetchActivities() async {
     try {
-      final list = await _api.fetchActivities();
-      final Map<DateTime, List<Activity>> updatedMap = {};
-
-      for (final item in list) {
-        final parsedDate = DateTime.parse(item['date']);
-        final normalized = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
-        updatedMap.putIfAbsent(normalized, () => []).add(
-          Activity(
-            title: item['title'],
-            color: Color(item['color']),
-          ),
+      final data = await _api.fetchActivities();
+      final updated = <DateTime, List<Activity>>{};
+      for (final row in data) {
+        final date = DateTime.parse(row['date']);
+        final key = DateTime(date.year, date.month, date.day);
+        updated.putIfAbsent(key, () => []).add(
+          Activity(title: row['title'], color: Color(row['color'])),
         );
       }
       setState(() {
-        _activities.clear();
-        _activities.addAll(updatedMap);
+        _activities
+          ..clear()
+          ..addAll(updated);
       });
     } catch (e) {
-      print("Eroare la preluarea activităților: $e");
+      debugPrint('Eroare la fetchActivities: $e');
     }
   }
 
-  void _showAddActivityDialog(DateTime selectedDay) {
-    final _formKey = GlobalKey<FormState>();
-    String activityTitle = "";
-    Color selectedColor = Colors.blue;
-    final List<Color> colorOptions = [
+  Future<void> _persistActivity(
+      {required Activity act, required DateTime onDay}) async {
+    final d = DateTime(onDay.year, onDay.month, onDay.day);
+    final dateStr =
+        '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    await _api.createActivity(
+        date: dateStr, title: act.title, colorValue: act.color.value);
+    setState(() {
+      _activities.putIfAbsent(d, () => []).add(act);
+    });
+  }
+
+  /* -------------------  ui helpers  ------------------- */
+  List<Activity> _forDay(DateTime d) {
+    final key = DateTime(d.year, d.month, d.day);
+    return _activities[key] ?? [];
+  }
+
+  void _dialogAddActivity(DateTime day) {
+    final formKey = GlobalKey<FormState>();
+    String title = '';
+    Color selected = Colors.blue;
+    const palette = [
       Colors.blue,
       Colors.green,
       Colors.red,
@@ -97,640 +125,113 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text("Planifică activitate"),
-              content: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      "Data: ${selectedDay.toLocal().toString().split(' ')[0]}",
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      decoration: const InputDecoration(
-                        labelText: "Titlu activitate",
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return "Completează titlul";
-                        }
-                        return null;
-                      },
-                      onSaved: (value) {
-                        activityTitle = value!;
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8.0,
-                      children: colorOptions.map((color) {
-                        return ChoiceChip(
-                          label: const Text(""),
-                          selected: selectedColor == color,
-                          selectedColor: color.withOpacity(0.8),
-                          backgroundColor: color.withOpacity(0.4),
-                          onSelected: (selected) {
-                            setStateDialog(() {
-                              selectedColor = color;
-                            });
-                          },
-                          avatar: Icon(Icons.circle, color: color, size: 20),
-                        );
-                      }).toList(),
-                    ),
-                  ],
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: const Text('Planifică activitate'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Data: ${day.toString().split(' ')[0]}',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration:
+                      const InputDecoration(labelText: 'Titlu activitate'),
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Completează titlul' : null,
+                  onSaved: (v) => title = v!.trim(),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  child: const Text("Anulează"),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                ElevatedButton(
-                  child: const Text("Salvează"),
-                  onPressed: () async {
-                    if (_formKey.currentState!.validate()) {
-                      _formKey.currentState!.save();
-
-                      final normalized = DateTime(
-                        selectedDay.year,
-                        selectedDay.month,
-                        selectedDay.day,
-                      );
-                      final dateString =
-                          '${normalized.year.toString().padLeft(4, '0')}-'
-                          '${normalized.month.toString().padLeft(2, '0')}-'
-                          '${normalized.day.toString().padLeft(2, '0')}';
-
-                      try {
-                        await _api.createActivity(
-                          date: dateString,
-                          title: activityTitle,
-                          colorValue: selectedColor.value,
-                        );
-
-                        setState(() {
-                          _activities.putIfAbsent(normalized, () => []).add(
-                            Activity(title: activityTitle, color: selectedColor),
-                          );
-                        });
-                        Navigator.of(context).pop();
-                      } catch (err) {
-                        print("Eroare la salvarea activității: $err");
-                      }
-                    }
-                  },
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: palette
+                      .map((c) => ChoiceChip(
+                            label: const SizedBox.shrink(),
+                            selected: selected == c,
+                            onSelected: (_) => setSt(() => selected = c),
+                            selectedColor: c.withOpacity(0.8),
+                            backgroundColor: c.withOpacity(0.4),
+                            avatar: Icon(Icons.circle, color: c, size: 18),
+                          ))
+                      .toList(),
                 ),
               ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Anulează')),
+            ElevatedButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+                  formKey.currentState!.save();
+                  try {
+                    await _persistActivity(
+                        act: Activity(title: title, color: selected),
+                        onDay: day);
+                  } catch (e) {
+                    debugPrint('Eroare la salvare: $e');
+                  } finally {
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('Salvează')),
+          ],
+        ),
+      ),
     );
   }
 
-  void _showAllUpcomingActivities() {
-    final ScrollController scrollController = ScrollController();
+  void _openUpcomingModal() {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
+          child: UpcomingActivitiesModal(
+            activities: _activities,
+            scrollController: ScrollController(),
           ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 600,
-              maxHeight: 500,
-            ),
-            child: UpcomingActivitiesModal(
-              activities: _activities,
-              scrollController: scrollController,
-            ),
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  void _goToIncarcaDocument() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const IncarcaDocumentScreen()),
-    );
-  }
+  /* -------------------  navigation  ------------------- */
+  void _push(Widget p) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => p));
 
-  void _goToGenereazaTeste() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const GenereazaTesteScreen()),
-    );
-  }
-
-  void _goToDocumentConversation() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ChatWithPdfScreen()),
-    );
-  }
-
+  /* =================================================================== */
+  /*                          BUILD                                      */
+  /* =================================================================== */
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: Row(
         children: [
-          // Sidebar-ul din stânga
-          Container(
-            width: 220,
-            color: Colors.white,
-            child: Column(
-              children: [
-                Container(
-                  height: 100,
-                  color: Colors.deepPurple,
-                  alignment: Alignment.center,
-                  child: const Text(
-                    "Smart Dashboard",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SidebarButton(
-                  icon: Icons.dashboard,
-                  label: "Dashboard",
-                  isSelected: true,
-                  onTap: () {},
-                ),
-                SidebarButton(
-                  icon: Icons.history_edu,
-                  label: "Istoric documente",
-                  onTap: () {
-                    Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const DocumentHistoryScreen()),
-                  );
-                },
-
-                ),
-                SidebarButton(
-                  icon: Icons.history,
-                  label: "Istoric test",
-                  onTap: () {},
-                ),
-                SidebarButton(
-                  icon: Icons.notifications_active,
-                  label: "Notificări",
-                  onTap: () {},
-                ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: SidebarButton(
-                    icon: Icons.logout,
-                    label: "Logout",
-                    onTap: () {},
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Zona principală
+          _buildSidebar(cs),
           Expanded(
             child: Column(
               children: [
-                Container(
-                  height: 70,
-                  color: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "Welcome to Smart",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 200,
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: "Search...",
-                                prefixIcon: const Icon(Icons.search_rounded),
-                                contentPadding:
-                                    const EdgeInsets.symmetric(vertical: 0),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[200],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          const CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.deepPurple,
-                            child: Icon(
-                              Icons.person_rounded,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                _buildTopBar(cs),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: _goToIncarcaDocument,
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blueAccent,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: const [
-                                      Icon(Icons.upload_file_rounded, color: Colors.white),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        "Încarcă document",
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: _goToGenereazaTeste,
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orangeAccent,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: const [
-                                      Icon(Icons.quiz_outlined, color: Colors.white),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        "Generează test",
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: _goToDocumentConversation,
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.purpleAccent,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: const [
-                                      Icon(Icons.chat_bubble_outline, color: Colors.white),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        "Conversează document",
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      "Calendar & Attendance",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    SizedBox(
-                                      height: 300,
-                                      child: TableCalendar<Activity>(
-                                        firstDay: DateTime.utc(2020, 1, 1),
-                                        lastDay: DateTime.utc(2030, 12, 31),
-                                        focusedDay: _focusedDay,
-                                        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                                        calendarFormat: CalendarFormat.month,
-                                        rowHeight: 30,
-                                        headerStyle: const HeaderStyle(
-                                          titleTextStyle: TextStyle(fontSize: 14),
-                                          formatButtonVisible: false,
-                                          leftChevronIcon: Icon(Icons.chevron_left, size: 16),
-                                          rightChevronIcon: Icon(Icons.chevron_right, size: 16),
-                                        ),
-                                        calendarBuilders: CalendarBuilders(
-                                          markerBuilder: (context, day, events) {
-                                            if (events.isEmpty) {
-                                              return const SizedBox();
-                                            }
-                                            return Positioned(
-                                              bottom: 1,
-                                              child: Row(
-                                                children: events.map((activity) {
-                                                  return Padding(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 1),
-                                                    child: Tooltip(
-                                                      message: activity.title,
-                                                      child: Container(
-                                                        width: 7,
-                                                        height: 7,
-                                                        decoration: BoxDecoration(
-                                                          shape: BoxShape.circle,
-                                                          color: activity.color,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  );
-                                                }).toList(),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                        calendarStyle: const CalendarStyle(
-                                          markerSize: 7,
-                                          markersAlignment: Alignment.bottomCenter,
-                                          todayDecoration: BoxDecoration(
-                                            color: Colors.deepPurple,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          selectedDecoration: BoxDecoration(
-                                            color: Colors.purpleAccent,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        onDaySelected: (selectedDay, focusedDay) {
-                                          setState(() {
-                                            _selectedDay = selectedDay;
-                                            _focusedDay = focusedDay;
-                                          });
-                                          _showAddActivityDialog(selectedDay);
-                                        },
-                                        onFormatChanged: (format) {},
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text("Activities Notification"),
-                                        TextButton(
-                                          onPressed: _showAllUpcomingActivities,
-                                          child: const Text("View all"),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    if (_selectedDay != null &&
-                                        _getActivitiesForDay(_selectedDay!).isNotEmpty)
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Activități pentru ${_selectedDay!.toLocal().toString().split(' ')[0]}:",
-                                            style: const TextStyle(fontWeight: FontWeight.bold),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          ..._getActivitiesForDay(_selectedDay!).map((activity) {
-                                            return ListTile(
-                                              leading: Icon(Icons.circle, color: activity.color, size: 12),
-                                              title: Text(activity.title),
-                                            );
-                                          }).toList(),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 3,
-                              child: Container(
-                                height: 420,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      "Activity Chart",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    // Folosește:
-                                    SizedBox(
-                                      height: 300, // sau orice înălțime fixă pe care o dorești
-                                      child: TimeSpentChart(timeSpent: _accumulatedTime),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: Container(
-                                height: 200,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      "Top Scorer",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Expanded(
-                                      child: ListView(
-                                        children: const [
-                                          ListTile(
-                                            leading: CircleAvatar(
-                                              backgroundColor: Colors.deepPurple,
-                                              child: Icon(Icons.person_rounded, color: Colors.white),
-                                            ),
-                                            title: Text("Brandon Harris"),
-                                            subtitle: Text("98.7%"),
-                                          ),
-                                          ListTile(
-                                            leading: CircleAvatar(
-                                              backgroundColor: Colors.pink,
-                                              child: Icon(Icons.person_rounded, color: Colors.white),
-                                            ),
-                                            title: Text("Charlie Sims"),
-                                            subtitle: Text("96.4%"),
-                                          ),
-                                          ListTile(
-                                            leading: CircleAvatar(
-                                              backgroundColor: Colors.orange,
-                                              child: Icon(Icons.person_rounded, color: Colors.white),
-                                            ),
-                                            title: Text("Mila Rose"),
-                                            subtitle: Text("95.2%"),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                height: 200,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      "School Fee Structure",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Expanded(
-                                      child: Container(
-                                        color: Colors.grey[100],
-                                        child: const Center(
-                                          child: Text("Fee Structure / Chart"),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        _buildQuickRow(cs),
+                        const SizedBox(height: 24),
+                        _buildCalendarAndChart(),
+                        const SizedBox(height: 24),
+                        _buildBottomRow(),          // ← rândul patch-uit
                       ],
                     ),
                   ),
@@ -742,4 +243,396 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
+
+  /* -----------  Sidebar  ----------- */
+  Widget _buildSidebar(ColorScheme cs) => Container(
+        width: 220,
+        color: cs.surface,
+        child: Column(
+          children: [
+            Container(
+              height: 100,
+              color: cs.primary,
+              alignment: Alignment.center,
+              child: const Text(
+                'Smart Dashboard',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SidebarButton(
+                icon: Icons.dashboard,
+                label: 'Dashboard',
+                isSelected: true,
+                onTap: () {}),
+            SidebarButton(
+                icon: Icons.history_edu,
+                label: 'Istoric documente',
+                onTap: () => _push(const DocumentHistoryScreen())),
+            SidebarButton(
+                icon: Icons.history,
+                label: 'Istoric test',
+                onTap: () => _push(const GenereazaTesteScreen())),
+            SidebarButton(
+                icon: Icons.notifications_active,
+                label: 'Notificări',
+                onTap: _openUpcomingModal),
+            const Spacer(),
+            SidebarButton(icon: Icons.logout, label: 'Logout', onTap: () {}),
+            const SizedBox(height: 16),
+          ],
+        ),
+      );
+
+  /* -----------  Top bar  ----------- */
+  Widget _buildTopBar(ColorScheme cs) => Container(
+        height: 70,
+        color: cs.surface,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Welcome to Smart',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                SizedBox(
+                  width: 200,
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: cs.background,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: cs.primary,
+                  child: const Icon(Icons.person_rounded, color: Colors.white),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  /* -----------  Quick-action cards  ----------- */
+  Widget _buildQuickRow(ColorScheme cs) => Row(
+        children: [
+          Expanded(
+            child: _ActionCard(
+              color: cs.primary,
+              icon: Icons.upload_file_rounded,
+              label: 'Încarcă document',
+              onTap: () => _push(const IncarcaDocumentScreen()),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _ActionCard(
+              color: cs.secondary,
+              icon: Icons.quiz_outlined,
+              label: 'Generează test',
+              onTap: () => _push(const GenereazaTesteScreen()),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _ActionCard(
+              color: cs.tertiary ?? Colors.purpleAccent,
+              icon: Icons.chat_bubble_outline,
+              label: 'Conversează document',
+              onTap: () => _push(const ChatWithPdfScreen()),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _ActionCard(
+              color: Colors.teal,
+              icon: Icons.text_snippet,
+              label: 'Quiz din text',
+              onTap: () => _push(const GenereazaQuizTextScreen()),
+            ),
+          ),
+        ],
+      );
+
+  /* -----------  Calendar + Chart  ----------- */
+  Widget _buildCalendarAndChart() => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /* Calendar & mini-list */
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: _whiteCard,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Calendar & Attendance',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 300,
+                    child: TableCalendar<Activity>(
+                      firstDay: DateTime.utc(2020, 1, 1),
+                      lastDay: DateTime.utc(2030, 12, 31),
+                      focusedDay: _focusedDay,
+                      selectedDayPredicate: (d) => isSameDay(_selectedDay, d),
+                      calendarFormat: CalendarFormat.month,
+                      rowHeight: 30,
+                      headerStyle: const HeaderStyle(
+                        titleTextStyle: TextStyle(fontSize: 14),
+                        formatButtonVisible: false,
+                        leftChevronIcon: Icon(Icons.chevron_left, size: 16),
+                        rightChevronIcon: Icon(Icons.chevron_right, size: 16),
+                      ),
+                      calendarStyle: const CalendarStyle(
+                        todayDecoration: BoxDecoration(
+                            color: Colors.deepPurple, shape: BoxShape.circle),
+                        selectedDecoration: BoxDecoration(
+                            color: Colors.purpleAccent, shape: BoxShape.circle),
+                      ),
+                      eventLoader: _forDay,
+                      calendarBuilders: CalendarBuilders(
+                        markerBuilder: (_, date, ev) {
+                          if (ev.isEmpty) return const SizedBox();
+                          return Positioned(
+                            bottom: 1,
+                            child: Row(
+                              children: ev.map((a) {
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 1),
+                                  child: Tooltip(
+                                    message: a.title,
+                                    child: Container(
+                                      width: 7,
+                                      height: 7,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: a.color,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          );
+                        },
+                      ),
+                      onDaySelected: (d, f) {
+                        setState(() {
+                          _selectedDay = d;
+                          _focusedDay = f;
+                        });
+                        _dialogAddActivity(d);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Activities Notification'),
+                      TextButton(
+                          onPressed: _openUpcomingModal,
+                          child: const Text('View all')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (_selectedDay != null && _forDay(_selectedDay!).isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Activități pentru ${_selectedDay!.toString().split(' ')[0]}:',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        ..._forDay(_selectedDay!).map(
+                          (a) => ListTile(
+                            leading:
+                                Icon(Icons.circle, size: 12, color: a.color),
+                            title: Text(a.title),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          /* Chart */
+          Expanded(
+            flex: 3,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: _whiteCard,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Activity Chart',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 300,
+                    child: TimeSpentChart(timeSpent: _accumulatedTime),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+  /* -----------  bottom row (patch : înălțime fixă) ----------- */
+  Widget _buildBottomRow() => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Container(
+              height: 250,                         //  ←  înălțime fixă
+              padding: const EdgeInsets.all(16),
+              decoration: _whiteCard,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Top Scorer',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      children: const [
+                        _TopScorerTile(
+                            name: 'Brandon Harris',
+                            score: '98.7%',
+                            color: Colors.deepPurple),
+                        _TopScorerTile(
+                            name: 'Charlie Sims',
+                            score: '96.4%',
+                            color: Colors.pink),
+                        _TopScorerTile(
+                            name: 'Mila Rose',
+                            score: '95.2%',
+                            color: Colors.orange),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 2,
+            child: Container(
+              height: 250,                         //  ←  înălțime fixă
+              padding: const EdgeInsets.all(16),
+              decoration: _whiteCard,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('School Fee Structure',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Container(
+                      color: Colors.grey[100],
+                      child:
+                          const Center(child: Text('Fee Structure / Chart')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+  BoxDecoration get _whiteCard => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))
+        ],
+      );
+}
+
+/* =================================================================== */
+/*                  Reusable small widgets                             */
+/* =================================================================== */
+
+class _ActionCard extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _ActionCard({
+    required this.color,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(
+                  color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      );
+}
+
+class _TopScorerTile extends StatelessWidget {
+  final String name;
+  final String score;
+  final Color color;
+  const _TopScorerTile(
+      {required this.name, required this.score, required this.color});
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        leading: CircleAvatar(
+            backgroundColor: color,
+            child: const Icon(Icons.person_rounded, color: Colors.white)),
+        title: Text(name),
+        subtitle: Text(score),
+      );
 }

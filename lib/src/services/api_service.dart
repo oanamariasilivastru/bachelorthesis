@@ -1,27 +1,24 @@
-/// Clasa care se ocupă cu request-uri către backend.
-/// Păstreaz-o într-un fișier separat sau imediat sub HomeScreen.
-/// Aici e un exemplu minimal pentru /activities:
 import 'dart:convert';
 import 'package:app/src/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:5000';  // schimbă la nevoie
+  static const String baseUrl = 'http://127.0.0.1:5000';
 
-  final String authToken = AuthService.token ?? ""; // token JWT obținut la login
+  /// Token-ul JWT obținut la login (poate fi gol dacă nu ești autentificat).
+  String get _authToken => AuthService.token ?? '';
 
-  // POST /activities
-  // Trimite datele unei noi activități la backend
+  /// Creează o nouă activitate (POST /activities → 201 on success).
   Future<void> createActivity({
-    required String date,       // "YYYY-MM-DD"
+    required String date,    // "YYYY-MM-DD"
     required String title,
-    required int colorValue,    // reprezentarea numerică a culorii (Color.value)
+    required int colorValue, // Color.value
   }) async {
     final url = Uri.parse('$baseUrl/activities');
     final response = await http.post(
       url,
       headers: {
-        'Authorization': 'Bearer $authToken',
+        'Authorization': 'Bearer $_authToken',
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
@@ -30,30 +27,52 @@ class ApiService {
         'color': colorValue,
       }),
     );
-
     if (response.statusCode != 201) {
       throw Exception('Eroare la crearea activității: ${response.body}');
     }
   }
 
-  // GET /activities
-  // Ia toate activitățile de la backend (dacă vrei să le refaci după un refresh)
+  /// Preia toate activitățile (GET /activities → 200).
   Future<List<Map<String, dynamic>>> fetchActivities() async {
     final url = Uri.parse('$baseUrl/activities');
     final response = await http.get(
       url,
       headers: {
-        'Authorization': 'Bearer $authToken',
+        'Authorization': 'Bearer $_authToken',
         'Content-Type': 'application/json',
       },
     );
-
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final List<dynamic> activities = data['activities'];
-      return activities.map((item) => item as Map<String, dynamic>).toList();
+      final List<dynamic> items = data['activities'] as List<dynamic>;
+      return items
+          .map((e) => e as Map<String, dynamic>)
+          .toList(growable: false);
     } else {
       throw Exception('Eroare la încărcarea activităților: ${response.body}');
     }
+  }
+
+  /// Generează un quiz pe baza unui text (POST /generate_quiz_text → 200).
+  ///
+  /// Returnează direct `http.Response` ca să poți decoda
+  /// `response.body` în ecranul tău.
+  Future<http.Response> generateQuizFromText({
+    required String token,        // JWT
+    required String text,         // textul sursă
+    required int numQuestions,    // câte întrebări
+  }) {
+    final url = Uri.parse('$baseUrl/generate_quiz_text');
+    return http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'text': text,
+        'num_questions': numQuestions,
+      }),
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app/src/models/activity.dart';
 
 class UpcomingActivitiesModal extends StatelessWidget {
   final Map<DateTime, List<Activity>> activities;
@@ -13,12 +14,12 @@ class UpcomingActivitiesModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
-    List<DateTime> upcomingDates = activities.keys
-        .where((d) =>
-            d.isAfter(DateTime(today.year, today.month, today.day)
-                .subtract(const Duration(seconds: 1))))
-        .toList();
-    upcomingDates.sort((a, b) => a.compareTo(b));
+    final cutoff = DateTime(today.year, today.month, today.day);
+    // doar zilele de azi sau după
+    final upcomingDates = activities.keys
+        .where((d) => !d.isBefore(cutoff))
+        .toList()
+      ..sort();
 
     return Container(
       decoration: const BoxDecoration(
@@ -28,7 +29,7 @@ class UpcomingActivitiesModal extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Header cu titlu și buton de închidere
+          // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -49,18 +50,23 @@ class UpcomingActivitiesModal extends StatelessWidget {
               itemCount: upcomingDates.length,
               itemBuilder: (context, index) {
                 final date = upcomingDates[index];
-                final activitiesForDate = activities[date] ?? [];
+                final activitiesForDate = activities[date]!;
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Data
                     Text(
-                      "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}",
+                      "${date.year}-"
+                      "${date.month.toString().padLeft(2, '0')}-"
+                      "${date.day.toString().padLeft(2, '0')}",
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // Lista de activități cu checkbox
                     ...activitiesForDate.map((activity) {
                       return StatefulBuilder(
                         builder: (context, setStateItem) {
@@ -80,10 +86,10 @@ class UpcomingActivitiesModal extends StatelessWidget {
                                 width: 2,
                                 color: Colors.deepPurple,
                               ),
-                              fillColor: MaterialStateProperty.resolveWith(
-                                  (states) => Colors.deepPurple),
+                              fillColor: MaterialStateProperty.all(
+                                  Colors.deepPurple),
                               value: activity.isDone,
-                              onChanged: (bool? value) {
+                              onChanged: (value) {
                                 setStateItem(() {
                                   activity.isDone = value ?? false;
                                 });
@@ -103,12 +109,4 @@ class UpcomingActivitiesModal extends StatelessWidget {
       ),
     );
   }
-}
-
-// Dacă modelul Activity nu este definit în acest fișier, adaugă-l aici:
-class Activity {
-  final String title;
-  final Color color;
-  bool isDone;
-  Activity({required this.title, required this.color, this.isDone = false});
 }

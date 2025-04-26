@@ -19,115 +19,75 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
   String _errorMessage = '';
   List<String> _generatedQuestions = [];
 
-  // Preluăm token-ul din AuthService (unde l-ai stocat după login).
   String? get _token => AuthService.token;
 
   Future<void> _pickDocument() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
     if (result != null && result.files.single.path != null) {
-      setState(() {
-        _documentPath = result.files.single.path;
-      });
+      setState(() => _documentPath = result.files.single.path);
     }
   }
 
   Future<void> _generateTest() async {
     if (_documentPath == null || _numQuestionsController.text.isEmpty) {
       setState(() {
-        _errorMessage =
-            'Selectează un document și introdu numărul de întrebări.';
+        _errorMessage = 'Selectează un document și numărul de întrebări.';
       });
       return;
     }
     if (_token == null) {
       setState(() {
-        _errorMessage = 'Nu ești autentificat. Te rugăm să te loghezi.';
+        _errorMessage = 'Te rugăm să te autentifici.';
       });
       return;
     }
 
-    final int numQuestions = int.tryParse(_numQuestionsController.text) ?? 3;
+    final int numQ = int.tryParse(_numQuestionsController.text) ?? 3;
     setState(() {
-      _errorMessage = '';
       _isLoading = true;
-      _generatedQuestions = [];
+      _errorMessage = '';
+      _generatedQuestions.clear();
     });
 
     try {
-      // Construim request-ul către backend
       final uri = Uri.parse('http://127.0.0.1:5000/generate_test');
-      final request = http.MultipartRequest('POST', uri)
+      final req = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $_token'
-        ..files.add(
-          await http.MultipartFile.fromPath(
-            'document',
-            _documentPath!,
-            contentType: MediaType('application', 'pdf'),
-          ),
-        )
-        ..fields['num_questions'] = numQuestions.toString();
+        ..fields['num_questions'] = numQ.toString()
+        ..files.add(await http.MultipartFile.fromPath(
+          'document',
+          _documentPath!,
+          contentType: MediaType('application', 'pdf'),
+        ));
 
-      // Trimitem request-ul
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        // Verificăm dacă data este un Map și conține eventual un câmp 'error'
-        if (data is Map<String, dynamic>) {
-          // 1) Dacă există un câmp 'error' în JSON, afișăm mesajul de eroare.
-          if (data.containsKey('error')) {
-            setState(() {
-              _errorMessage = 'Eroare de la backend: ${data["error"]}';
-            });
-          }
-          // 2) Dacă există un câmp 'questions' și nu este null, îl convertim la listă de String.
-          else if (data.containsKey('questions') && data['questions'] != null) {
-            try {
-              final List<String> questions =
-                  List<String>.from(data['questions']);
-              setState(() {
-                _generatedQuestions = questions;
-              });
-            } catch (e) {
-              setState(() {
-                _errorMessage =
-                    'Formatul răspunsului nu este cel așteptat. Detalii: $e';
-              });
-            }
-          }
-          // 3) Altfel, formatul de răspuns e necunoscut (lipsesc cheile așteptate).
-          else {
-            setState(() {
-              _errorMessage =
-                  'Răspuns necunoscut de la backend (lipsesc "questions").';
-            });
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        if (data.containsKey('error')) {
+          setState(() => _errorMessage = 'Backend error: ${data['error']}');
+        } else if (data.containsKey('questions') && data['questions'] != null) {
+          try {
+            final List<String> qs = List<String>.from(data['questions']);
+            setState(() => _generatedQuestions = qs);
+          } catch (e) {
+            setState(() => _errorMessage = 'Răspuns neașteptat: $e');
           }
         } else {
-          setState(() {
-            _errorMessage =
-                'Răspuns necunoscut de la backend (nu e Map<String,dynamic>).';
-          });
+          setState(() => _errorMessage = 'Format răspuns invalid.');
         }
       } else {
-        // Caz în care serverul răspunde cu alt cod decât 200
-        setState(() {
-          _errorMessage =
-              'Eroare de la backend: ${response.statusCode}, ${response.body}';
-        });
+        setState(() =>
+            _errorMessage = 'Eroare ${res.statusCode}: ${res.body}');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Eroare: $e';
-      });
+      setState(() => _errorMessage = 'Eroare: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -139,96 +99,140 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ButtonStyle commonButtonStyle = ElevatedButton.styleFrom(
-      backgroundColor: Colors.deepPurple,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    final cs = Theme.of(context).colorScheme;
+    final btnStyle = ElevatedButton.styleFrom(
+      backgroundColor: cs.primary,
+      foregroundColor: cs.onPrimary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      padding: const EdgeInsets.symmetric(vertical: 14),
     );
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Generează Test"),
-        backgroundColor: Colors.deepPurple,
+        title: const Text('Generează Test'),
+        centerTitle: true,
+        elevation: 2,
+        backgroundColor: cs.primary,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            ElevatedButton.icon(
-              onPressed: _pickDocument,
-              icon: const Icon(Icons.upload_file_rounded),
-              label: Text(_documentPath != null
-                  ? "Document selectat"
-                  : "Selectează Document"),
-              style: commonButtonStyle,
+            // Card pentru încărcare document
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              child: ListTile(
+                leading: Icon(
+                  Icons.upload_file,
+                  color: cs.primary,
+                ),
+                title: Text(
+                  _documentPath == null
+                      ? 'Selectează PDF'
+                      : _documentPath!.split('/').last,
+                  style: TextStyle(color: cs.onSurface),
+                ),
+                trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: _pickDocument,
+              ),
             ),
             const SizedBox(height: 16),
-            TextFormField(
+
+            // Număr întrebări
+            TextField(
               controller: _numQuestionsController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: "Număr de întrebări",
-                prefixIcon: const Icon(Icons.format_list_numbered),
+                labelText: 'Număr întrebări',
+                prefixIcon: Icon(Icons.format_list_numbered, color: cs.primary),
+                filled: true,
+                fillColor: cs.surfaceVariant,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+
+            // Buton generează
+            SizedBox(
+              width: double.infinity,
+              child: _isLoading
+                  ? Center(child: CircularProgressIndicator(color: cs.primary))
+                  : ElevatedButton.icon(
+                      style: btnStyle,
+                      icon: const Icon(Icons.quiz),
+                      label: const Text('Generează'),
+                      onPressed: _generateTest,
+                    ),
+            ),
+
             const SizedBox(height: 16),
-            _isLoading
-                ? const CircularProgressIndicator(color: Colors.deepPurple)
-                : ElevatedButton.icon(
-                    onPressed: _generateTest,
-                    icon: const Icon(Icons.quiz_outlined),
-                    label: const Text("Generează Test"),
-                    style: commonButtonStyle,
-                  ),
-            const SizedBox(height: 16),
+
+            // Mesaj eroare
             if (_errorMessage.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.redAccent),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.redAccent),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.redAccent,
+              Card(
+                color: cs.errorContainer,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error, color: cs.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage,
+                          style: TextStyle(color: cs.onErrorContainer),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 16),
-            if (_generatedQuestions.isNotEmpty)
-              Card(
-                color: Colors.orangeAccent.withOpacity(0.1),
-                shape:
-                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _generatedQuestions
-                        .map(
-                          (q) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(q, style: const TextStyle(fontSize: 16)),
-                          ),
-                        )
-                        .toList(),
+                    ],
                   ),
                 ),
               ),
+
+            // Întrebări generate
+            if (_generatedQuestions.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Întrebări generate:',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                child: ListView.separated(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: _generatedQuestions.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, i) {
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: cs.primaryContainer,
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(color: cs.onPrimaryContainer),
+                        ),
+                      ),
+                      title: Text(
+                        _generatedQuestions[i],
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),
