@@ -1,6 +1,7 @@
 // lib/src/screens/home_screen.dart
 // ignore_for_file: cascade_invocations
 
+import 'package:app/src/widgets/genereaza_teste_screen.dart' show GenereazaTesteScreen;
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -13,34 +14,24 @@ import '../widgets/time_spent_chart.dart';
 import '../widgets/incarca_document_screen.dart';
 
 import 'chat_pdf_screen.dart';
-import 'genereaza_test_screen.dart';
 import 'document_history_screen.dart';
 import 'genereaza_quiz_text_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-/* =================================================================== */
-/*                       _HomeScreenState                              */
-/* =================================================================== */
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  /* -------------------  state  ------------------- */
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-
-  /// cheie = zi (00:00) → activități
   final Map<DateTime, List<Activity>> _activities = {};
   final ApiService _api = ApiService();
 
-  /* pentru grafic */
   final Stopwatch _stopwatch = Stopwatch();
   Duration _accumulatedTime = Duration.zero;
 
-  /* -------------------  lifecycle  ------------------- */
   @override
   void initState() {
     super.initState();
@@ -68,14 +59,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /* -------------------  api  ------------------- */
   Future<void> _fetchActivities() async {
     try {
       final data = await _api.fetchActivities();
       final updated = <DateTime, List<Activity>>{};
       for (final row in data) {
-        final date = DateTime.parse(row['date']);
-        final key = DateTime(date.year, date.month, date.day);
+        final d = DateTime.parse(row['date']);
+        final key = DateTime(d.year, d.month, d.day);
         updated.putIfAbsent(key, () => []).add(
           Activity(title: row['title'], color: Color(row['color'])),
         );
@@ -104,7 +94,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  /* -------------------  ui helpers  ------------------- */
   List<Activity> _forDay(DateTime d) {
     final key = DateTime(d.year, d.month, d.day);
     return _activities[key] ?? [];
@@ -203,13 +192,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /* -------------------  navigation  ------------------- */
   void _push(Widget p) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => p));
 
-  /* =================================================================== */
-  /*                          BUILD                                      */
-  /* =================================================================== */
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -231,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const SizedBox(height: 24),
                         _buildCalendarAndChart(),
                         const SizedBox(height: 24),
-                        _buildBottomRow(),          // ← rândul patch-uit
+                        _buildBottomRow(),
                       ],
                     ),
                   ),
@@ -244,7 +229,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /* -----------  Sidebar  ----------- */
   Widget _buildSidebar(ColorScheme cs) => Container(
         width: 220,
         color: cs.surface,
@@ -287,7 +271,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       );
 
-  /* -----------  Top bar  ----------- */
   Widget _buildTopBar(ColorScheme cs) => Container(
         height: 70,
         color: cs.surface,
@@ -326,12 +309,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       );
 
-  /* -----------  Quick-action cards  ----------- */
+  /// Aici am schimbat doar culorile, pentru un look mai viu:
   Widget _buildQuickRow(ColorScheme cs) => Row(
         children: [
           Expanded(
             child: _ActionCard(
-              color: cs.primary,
+              color: Colors.blueAccent,
               icon: Icons.upload_file_rounded,
               label: 'Încarcă document',
               onTap: () => _push(const IncarcaDocumentScreen()),
@@ -340,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(width: 16),
           Expanded(
             child: _ActionCard(
-              color: cs.secondary,
+              color: Colors.pinkAccent,
               icon: Icons.quiz_outlined,
               label: 'Generează test',
               onTap: () => _push(const GenereazaTesteScreen()),
@@ -349,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(width: 16),
           Expanded(
             child: _ActionCard(
-              color: cs.tertiary ?? Colors.purpleAccent,
+              color: Colors.orangeAccent,
               icon: Icons.chat_bubble_outline,
               label: 'Conversează document',
               onTap: () => _push(const ChatWithPdfScreen()),
@@ -358,7 +341,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(width: 16),
           Expanded(
             child: _ActionCard(
-              color: Colors.teal,
+              color: Colors.greenAccent,
               icon: Icons.text_snippet,
               label: 'Quiz din text',
               onTap: () => _push(const GenereazaQuizTextScreen()),
@@ -367,11 +350,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
 
-  /* -----------  Calendar + Chart  ----------- */
   Widget _buildCalendarAndChart() => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /* Calendar & mini-list */
           Expanded(
             flex: 2,
             child: Container(
@@ -407,31 +388,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       eventLoader: _forDay,
                       calendarBuilders: CalendarBuilders(
-                        markerBuilder: (_, date, ev) {
-                          if (ev.isEmpty) return const SizedBox();
-                          return Positioned(
-                            bottom: 1,
-                            child: Row(
-                              children: ev.map((a) {
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 1),
-                                  child: Tooltip(
-                                    message: a.title,
-                                    child: Container(
-                                      width: 7,
-                                      height: 7,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: a.color,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          );
-                        },
+                        markerBuilder: (_, date, ev) =>
+                            ev.isEmpty ? const SizedBox() : _buildMarkers(ev),
                       ),
                       onDaySelected: (d, f) {
                         setState(() {
@@ -458,17 +416,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Activități pentru ${_selectedDay!.toString().split(' ')[0]}:',
+                          'Activități pentru ${_selectedDay!.toLocal().toString().split(' ')[0]}:',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
-                        ..._forDay(_selectedDay!).map(
-                          (a) => ListTile(
-                            leading:
-                                Icon(Icons.circle, size: 12, color: a.color),
-                            title: Text(a.title),
-                          ),
-                        ),
+                        ..._forDay(_selectedDay!).map((a) => ListTile(
+                              leading:
+                                  Icon(Icons.circle, size: 12, color: a.color),
+                              title: Text(a.title),
+                            )),
                       ],
                     ),
                 ],
@@ -476,7 +432,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(width: 16),
-          /* Chart */
           Expanded(
             flex: 3,
             child: Container(
@@ -490,9 +445,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   SizedBox(
-                    height: 300,
-                    child: TimeSpentChart(timeSpent: _accumulatedTime),
-                  ),
+                      height: 300,
+                      child: TimeSpentChart(timeSpent: _accumulatedTime)),
                 ],
               ),
             ),
@@ -500,14 +454,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
 
-  /* -----------  bottom row (patch : înălțime fixă) ----------- */
+  Widget _buildMarkers(List<Activity> ev) => Positioned(
+        bottom: 1,
+        child: Row(
+          children: ev
+              .map((a) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 1),
+                    child: Tooltip(
+                      message: a.title,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration:
+                            BoxDecoration(shape: BoxShape.circle, color: a.color),
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+      );
+
   Widget _buildBottomRow() => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             flex: 3,
             child: Container(
-              height: 250,                         //  ←  înălțime fixă
+              height: 250,
               padding: const EdgeInsets.all(16),
               decoration: _whiteCard,
               child: Column(
@@ -543,7 +516,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Expanded(
             flex: 2,
             child: Container(
-              height: 250,                         //  ←  înălțime fixă
+              height: 250,
               padding: const EdgeInsets.all(16),
               decoration: _whiteCard,
               child: Column(
@@ -576,22 +549,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
 }
 
-/* =================================================================== */
-/*                  Reusable small widgets                             */
-/* =================================================================== */
-
 class _ActionCard extends StatelessWidget {
   final Color color;
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _ActionCard({
-    required this.color,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    Key? key,
-  }) : super(key: key);
+  const _ActionCard(
+      {required this.color,
+      required this.icon,
+      required this.label,
+      required this.onTap,
+      Key? key})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) => GestureDetector(

@@ -1,7 +1,11 @@
+// lib/src/screens/genereaza_quiz_text_screen.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:app/src/services/api_service.dart';
+import 'package:http/http.dart' as http;
 import 'package:app/src/services/auth_service.dart';
+import 'package:app/src/models/quiz_item.dart';
+import 'quiz_session_screen.dart';
 
 class GenereazaQuizTextScreen extends StatefulWidget {
   const GenereazaQuizTextScreen({Key? key}) : super(key: key);
@@ -12,14 +16,20 @@ class GenereazaQuizTextScreen extends StatefulWidget {
 }
 
 class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
-  final TextEditingController _textController = TextEditingController();
-  final TextEditingController _numQController =
-      TextEditingController(text: '3');
+  final _textController = TextEditingController();
+  final _numQController = TextEditingController(text: '3');
   bool _isLoading = false;
   String _errorMessage = '';
-  List<String> _questions = [];
+  List<QuizItem> _quizItems = [];
+  int _timerSeconds = 60;
 
-  final ApiService _api = ApiService();
+  static const Map<String, String> _languages = {
+    'ro': 'Română',
+    'en': 'English',
+    'es': 'Español',
+    'fr': 'Français',
+  };
+  String _selectedLanguage = 'ro';
 
   String? get _token => AuthService.token;
 
@@ -28,8 +38,7 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
     final numQ = int.tryParse(_numQController.text) ?? 3;
 
     if (text.isEmpty) {
-      setState(() =>
-          _errorMessage = 'Introdu textul de la care să generezi quiz.');
+      setState(() => _errorMessage = 'Introdu textul sursă.');
       return;
     }
     if (_token == null) {
@@ -40,30 +49,81 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
-      _questions.clear();
+      _quizItems = [];
     });
 
     try {
-      final response = await _api.generateQuizFromText(
-        token: _token!,
-        text: text,
-        numQuestions: numQ,
+      final path = _selectedLanguage == 'ro'
+          ? 'generate_mcq_ro'
+          : 'generate_mcq_en';
+      final uri = Uri.parse('http://127.0.0.1:5000/$path');
+
+      final res = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'text': text, 'num_questions': numQ}),
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        if (data.containsKey('error')) {
-          setState(() => _errorMessage = data['error']);
-        } else if (data.containsKey('questions')) {
-          setState(() =>
-              _questions = List<String>.from(data['questions'] as List));
-        } else {
-          setState(() => _errorMessage = 'Răspuns neașteptat de la server.');
-        }
-      } else {
-        setState(() => _errorMessage =
-            'Eroare ${response.statusCode}: ${response.body}');
+      if (res.statusCode != 200) {
+        setState(() =>
+            _errorMessage = 'Eroare ${res.statusCode}: ${res.body}');
+        return;
       }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final raw = data['questions'] as List<dynamic>?;
+
+      if (raw == null) {
+        setState(() =>
+            _errorMessage = data['error'] ?? 'Răspuns neașteptat.');
+        return;
+      }
+
+      // keys depending on language
+      final qKey = _selectedLanguage == 'ro' ? 'question_ro' : 'question_en';
+      final oKey = _selectedLanguage == 'ro' ? 'options_ro' : 'options_en';
+      final aKey = _selectedLanguage == 'ro' ? 'answer_ro' : 'answer_en';
+
+      final items = <QuizItem>[];
+      for (final e in raw) {
+        final m = e as Map<String, dynamic>;
+
+        // extract with null safety + fallback
+        final question = (m[qKey] as String?)?.trim() ??
+            (m['question'] as String?)?.trim() ??
+            'Întrebare indisponibilă';
+        final answer = (m[aKey] as String?)?.trim() ??
+            (m['answer'] as String?)?.trim() ??
+            'Răspuns indisponibil';
+
+        final optsRaw = m[oKey] as List<dynamic>?;
+        final options = <String>[];
+        if (optsRaw != null) {
+          for (final o in optsRaw) {
+            final s = o?.toString().trim() ?? '';
+            if (s.isNotEmpty) options.add(s);
+          }
+        }
+        // fallback to legacy key
+        if (options.isEmpty && m['options'] is List) {
+          options.addAll(
+            (m['options'] as List).map((o) => o.toString().trim()),
+          );
+        }
+        // ensure answer present
+        if (!options.contains(answer)) options.add(answer);
+
+        items.add(QuizItem(
+          question: question,
+          options: options,
+          answer: answer,
+        ));
+      }
+
+      setState(() => _quizItems = items);
     } catch (e) {
       setState(() => _errorMessage = 'Eroare: $e');
     } finally {
@@ -85,89 +145,155 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quiz din Text'),
-        backgroundColor: cs.secondary,
+        backgroundColor: cs.primary,
+        foregroundColor: cs.onPrimary,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Input multi-line pentru textul sursă
-            TextField(
-              controller: _textController,
-              maxLines: 6,
-              decoration: InputDecoration(
-                hintText: 'Li​pește aici textul sursă...',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Număr întrebări
-            TextField(
-              controller: _numQController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Număr întrebări',
-                prefixIcon:
-                    Icon(Icons.format_list_numbered, color: cs.secondary),
-                filled: true,
-                fillColor: cs.surfaceVariant,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+            Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: TextField(
+                  controller: _textController,
+                  maxLines: 6,
+                  decoration: const InputDecoration.collapsed(
+                    hintText: 'Li​pește aici textul sursă...',
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            // Buton generează
-            SizedBox(
-              width: double.infinity,
-              child: _isLoading
-                  ? Center(child: CircularProgressIndicator(color: cs.secondary))
-                  : ElevatedButton.icon(
-                      icon: const Icon(Icons.quiz),
-                      label: const Text('Generează Quiz'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: cs.secondary,
-                        foregroundColor: cs.onSecondary,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: _generateQuiz,
+            const SizedBox(height: 16),
+
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _numQController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Nr. întrebări',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedLanguage,
+                    decoration: InputDecoration(
+                      labelText: 'Limbă',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    items: _languages.entries
+                        .map((e) => DropdownMenuItem(
+                              value: e.key,
+                              child: Text(e.value),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedLanguage = v!),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            // Mesaj de eroare
-            if (_errorMessage.isNotEmpty)
-              Text(_errorMessage, style: TextStyle(color: cs.error)),
-            // Listă întrebări generate
-            if (_questions.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Întrebări generate:',
-                    style: Theme.of(context).textTheme.titleMedium),
+
+            Row(
+              children: [
+                const Text('Timer:'),
+                Expanded(
+                  child: Slider(
+                    value: _timerSeconds.toDouble(),
+                    min: 0,
+                    max: 300,
+                    divisions: 30,
+                    label: _timerSeconds == 0
+                        ? 'Fără timp'
+                        : '${_timerSeconds}s',
+                    onChanged: (v) =>
+                        setState(() => _timerSeconds = v.round()),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.refresh),
+                label: const Text('Generează Quiz'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: _isLoading ? null : _generateQuiz,
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: _questions.length,
-                  separatorBuilder: (_, __) => const Divider(),
-                  itemBuilder: (context, index) {
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: cs.secondaryContainer,
-                        child: Text(
-                          '${index + 1}',
-                          style:
-                              TextStyle(color: cs.onSecondaryContainer),
+            ),
+
+            if (_errorMessage.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(_errorMessage, style: TextStyle(color: cs.error)),
+            ],
+
+            if (_quizItems.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Card(
+                color: cs.secondaryContainer,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Quiz-ul este gata! Ai ${_quizItems.length} întrebări.',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: cs.onSecondaryContainer),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side:
+                                BorderSide(color: cs.onSecondaryContainer),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => QuizSessionScreen(
+                                  items: _quizItems,
+                                  language: _selectedLanguage,
+                                  timerSeconds: _timerSeconds,
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text('Începe Quiz-ul'),
                         ),
                       ),
-                      title: Text(_questions[index]),
-                    );
-                  },
+                    ],
+                  ),
                 ),
               ),
             ],

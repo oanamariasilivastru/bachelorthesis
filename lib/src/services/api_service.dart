@@ -1,9 +1,11 @@
+// lib/src/services/api_service.dart
+
 import 'dart:convert';
 import 'package:app/src/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:5000';
+  static const String _baseUrl = 'http://127.0.0.1:5000';
 
   /// Token-ul JWT obținut la login (poate fi gol dacă nu ești autentificat).
   String get _authToken => AuthService.token ?? '';
@@ -14,7 +16,7 @@ class ApiService {
     required String title,
     required int colorValue, // Color.value
   }) async {
-    final url = Uri.parse('$baseUrl/activities');
+    final url = Uri.parse('$_baseUrl/activities');
     final response = await http.post(
       url,
       headers: {
@@ -34,7 +36,7 @@ class ApiService {
 
   /// Preia toate activitățile (GET /activities → 200).
   Future<List<Map<String, dynamic>>> fetchActivities() async {
-    final url = Uri.parse('$baseUrl/activities');
+    final url = Uri.parse('$_baseUrl/activities');
     final response = await http.get(
       url,
       headers: {
@@ -42,37 +44,50 @@ class ApiService {
         'Content-Type': 'application/json',
       },
     );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final List<dynamic> items = data['activities'] as List<dynamic>;
-      return items
-          .map((e) => e as Map<String, dynamic>)
-          .toList(growable: false);
-    } else {
+    if (response.statusCode != 200) {
       throw Exception('Eroare la încărcarea activităților: ${response.body}');
     }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return (data['activities'] as List<dynamic>)
+        .cast<Map<String, dynamic>>();
   }
 
-  /// Generează un quiz pe baza unui text (POST /generate_quiz_text → 200).
+  /// Generează un quiz pe baza unui text, în funcție de limbă.
   ///
-  /// Returnează direct `http.Response` ca să poți decoda
-  /// `response.body` în ecranul tău.
+  /// - Engleză → POST /generate_mcq_en
+  /// - Română  → POST /generate_mcq_ro
   Future<http.Response> generateQuizFromText({
-    required String token,        // JWT
-    required String text,         // textul sursă
-    required int numQuestions,    // câte întrebări
-  }) {
-    final url = Uri.parse('$baseUrl/generate_quiz_text');
-    return http.post(
+    required String text,
+    required int numQuestions,
+    required String language, // 'ro' | 'en'
+  }) async {
+    // Alege endpoint-ul potrivit
+    final path = language.toLowerCase() == 'en'
+        ? '/generate_mcq_en'
+        : '/generate_mcq_ro';
+
+    final url = Uri.parse('$_baseUrl$path');
+
+    // Corpul JSON: textul și numărul de întrebări
+    final payload = {
+      'text': text,
+      'num_questions': numQuestions,
+    };
+
+    final response = await http.post(
       url,
       headers: {
-        'Authorization': 'Bearer $token',
+        'Authorization': 'Bearer $_authToken',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'text': text,
-        'num_questions': numQuestions,
-      }),
+      body: jsonEncode(payload),
     );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Eroare la generarea quiz-ului (${response.statusCode}): ${response.body}'
+      );
+    }
+    return response;
   }
 }
