@@ -1,10 +1,20 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'src/providers/profile_provider.dart';
 import 'src/screens/home_screen.dart';
 import 'src/screens/login_screen.dart';
 import 'src/screens/register_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ProfileProvider()..loadProfile(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

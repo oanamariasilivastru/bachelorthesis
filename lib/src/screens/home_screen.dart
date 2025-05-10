@@ -7,6 +7,8 @@ import 'package:table_calendar/table_calendar.dart';
 
 import 'package:app/src/models/activity.dart';
 import 'package:app/src/services/api_service.dart';
+import 'package:app/src/screens/profile_screen.dart';
+
 
 import '../widgets/sidebar_button.dart';
 import '../widgets/upcoming_activities_modal.dart';
@@ -302,6 +304,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   radius: 20,
                   backgroundColor: cs.primary,
                   child: const Icon(Icons.person_rounded, color: Colors.white),
+                ),
+                 GestureDetector(
+                  onTap: () => _push(const ProfileScreen()),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: cs.primary,
+                    child: const Icon(Icons.person_rounded, color: Colors.white),
+                  ),
                 ),
               ],
             ),

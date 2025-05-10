@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:app/src/services/auth_service.dart';
+import 'package:app/src/models/user_profile.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -61,14 +62,10 @@ class ApiService {
     required int numQuestions,
     required String language, // 'ro' | 'en'
   }) async {
-    // Alege endpoint-ul potrivit
     final path = language.toLowerCase() == 'en'
         ? '/generate_mcq_en'
         : '/generate_mcq_ro';
-
     final url = Uri.parse('$_baseUrl$path');
-
-    // Corpul JSON: textul și numărul de întrebări
     final payload = {
       'text': text,
       'num_questions': numQuestions,
@@ -85,9 +82,61 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Eroare la generarea quiz-ului (${response.statusCode}): ${response.body}'
+        'Eroare la generarea quiz-ului (${response.statusCode}): ${response.body}',
       );
     }
     return response;
+  }
+
+  /// Preia profilul utilizatorului, inclusiv streak, achievements și missions.
+  /// GET /profile → 200 + JSON { user_id, name, email, current_streak, last_active_date, achievements, missions }
+  Future<UserProfile> fetchUserProfile() async {
+    final url = Uri.parse('$_baseUrl/profile');
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $_authToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Eroare la încărcarea profilului: ${response.body}');
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return UserProfile.fromJson(data);
+  }
+
+  /// Deblochează un achievement (POST /achievements/{id}/unlock → 200).
+  Future<void> unlockAchievement(String achievementId) async {
+    final url = Uri.parse('$_baseUrl/achievements/$achievementId/unlock');
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $_authToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Eroare la deblocarea realizării ($achievementId): ${response.body}',
+      );
+    }
+  }
+
+  /// Marchează o misiune ca finalizată (POST /missions/{id}/complete → 200).
+  Future<void> completeMission(String missionId) async {
+    final url = Uri.parse('$_baseUrl/missions/$missionId/complete');
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $_authToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Eroare la finalizarea misiunii ($missionId): ${response.body}',
+      );
+    }
   }
 }
