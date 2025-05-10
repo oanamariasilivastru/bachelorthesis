@@ -10,7 +10,7 @@ import 'package:app/src/models/mission.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
-  // Paleta de culori vii
+  // Paletă de culori vii
   static const List<Color> _vibrant = [
     Colors.redAccent,
     Colors.orangeAccent,
@@ -27,8 +27,8 @@ class ProfileScreen extends StatelessWidget {
       child: Card(
         color: color,
         elevation: 4,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding:
               const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
@@ -52,16 +52,82 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  /// Creează un card de misiune cu bară de progres și procent
+  Widget _buildMissionCard(Mission m, int index, VoidCallback onTap) {
+    final color = _vibrant[index % _vibrant.length];
+    // Exemplu de progres; în realitate ai un câmp double progress în Mission
+    final progress = m.isCompleted ? 1.0 : 0.4;
+
+    return GestureDetector(
+      onTap: m.isCompleted ? null : onTap,
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color, width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(
+              m.isCompleted ? Icons.check_circle : Icons.timelapse,
+              size: 32,
+              color: color,
+            ),
+            Text(
+              m.description,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              '${(progress * 100).round()}%',
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.bold),
+            ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 8,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<ProfileProvider>();
-    final profile = prov.profile;
-    if (prov.isLoading || profile == null) {
+    if (prov.isLoading || prov.profile == null) {
       return const Scaffold(
         backgroundColor: Colors.grey,
         body: Center(child: CircularProgressIndicator()),
       );
     }
+    final profile = prov.profile!;
+
+    // Lista extinsă de misiuni (includem și câteva demo suplimentare)
+    final allMissions = [
+      ...profile.missions,
+      Mission(id: 'm_extra1', description: 'Completează 5 quiz-uri', isCompleted: false),
+      Mission(id: 'm_extra2', description: 'Încarcă un document PDF', isCompleted: true),
+      Mission(id: 'm_extra3', description: 'Planifică o lecție nouă', isCompleted: false),
+      Mission(id: 'm_extra4', description: 'Revizuiește notițele de curs', isCompleted: false),
+      Mission(id: 'm_extra5', description: 'Răspunde la 10 întrebări', isCompleted: true),
+      Mission(id: 'm_extra6', description: 'Menține streak-ul 7 zile', isCompleted: false),
+    ];
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -71,7 +137,7 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
+              // ─── Header ─────────────────────────
               Card(
                 color: Colors.white,
                 elevation: 4,
@@ -103,7 +169,8 @@ class ProfileScreen extends StatelessWidget {
                             Text(profile.name,
                                 style: const TextStyle(
                                     fontSize: 22,
-                                    fontWeight: FontWeight.bold)),
+                                    fontWeight:
+                                        FontWeight.bold)),
                             const SizedBox(height: 4),
                             Text(profile.email,
                                 style: const TextStyle(
@@ -114,7 +181,8 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () =>
+                            Navigator.of(context).pop(),
                       ),
                     ],
                   ),
@@ -123,7 +191,7 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Stat cards vii
+              // ─── Stat cards vii ─────────────────
               Row(
                 children: [
                   _statCard(
@@ -147,7 +215,7 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   _statCard(
                       'Misiuni',
-                      profile.missions
+                      allMissions
                           .where((m) => m.isCompleted)
                           .length
                           .toString(),
@@ -167,7 +235,7 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Achievements
+              // ─── Achievements ────────────────────
               Card(
                 color: Colors.white,
                 elevation: 4,
@@ -238,47 +306,21 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Missions
-              Card(
-                color: Colors.white,
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text('Provocări',
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      ...profile.missions.map((m) {
-                        return Padding(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 4),
-                          child: CheckboxListTile(
-                            tileColor: m.isCompleted
-                                ? _vibrant[4]
-                                    .withOpacity(0.2)
-                                : null,
-                            shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
-                            title: Text(m.description),
-                            value: m.isCompleted,
-                            activeColor: _vibrant[4],
-                            onChanged: m.isCompleted
-                                ? null
-                                : (_) => prov.completeMission(m.id),
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
+              // ─── Provocări (orizontal) ───────────
+              const Text('Provocări',
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 160,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: allMissions.length,
+                  itemBuilder: (ctx, i) => _buildMissionCard(
+                      allMissions[i], i, () {
+                    // marchează completarea
+                    prov.completeMission(allMissions[i].id);
+                  }),
                 ),
               ),
 
