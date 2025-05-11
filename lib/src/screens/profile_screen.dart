@@ -1,9 +1,11 @@
 // lib/src/screens/profile_screen.dart
 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app/src/providers/profile_provider.dart';
+import 'package:app/src/models/achievement.dart';
 import 'package:app/src/models/mission.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -48,19 +50,81 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Creează un card de misiune cu fundal alb și accente colorate
-  Widget _buildMissionCard(Mission m, int index, VoidCallback onTap) {
+  void _showMissionDetails(
+      BuildContext context, Mission m, int index, int total) {
     final color = _vibrant[index % _vibrant.length];
-    final progress = m.isCompleted ? 1.0 : 0.4;
+    final raw = (index + 1) / total;
+    final progress = m.isCompleted ? 1.0 : min(raw, 0.99);
+    final prov = Provider.of<ProfileProvider>(context, listen: false);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(m.description,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 12,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('${(progress * 100).round()}% finalizat',
+                style:
+                    TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            if (!m.isCompleted)
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: () {
+                  prov.completeMission(m.id);
+                  Navigator.of(context).pop();
+                },
+                icon: const Icon(Icons.check),
+                label: const Text('Marchează ca finalizată'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Închide'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMissionCard(
+      BuildContext context, Mission m, int index, int total) {
+    final color = _vibrant[index % _vibrant.length];
+    final raw = (index + 1) / total;
+    final progress = m.isCompleted ? 1.0 : min(raw, 0.99);
 
     return GestureDetector(
-      onTap: m.isCompleted ? null : onTap,
+      onTap: () => _showMissionDetails(context, m, index, total),
       child: Card(
         color: Colors.white,
         elevation: 2,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: color, width: 1.5)),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: color, width: 1.5),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -114,6 +178,62 @@ class ProfileScreen extends StatelessWidget {
     }
     final profile = prov.profile!;
 
+    // Lista demo realizări
+    final allAchievements = [
+      ...profile.achievements,
+      Achievement(
+          id: 'a1',
+          title: 'Primul quiz',
+          description: 'Finalizează primul quiz generat automat',
+          isUnlocked: false),
+      Achievement(
+          id: 'a2',
+          title: 'Încărcare PDF',
+          description: 'Încarcă un document PDF pentru QA',
+          isUnlocked: false),
+      Achievement(
+          id: 'a3',
+          title: 'Streak 3 zile',
+          description: 'Folosește aplicația 3 zile consecutive',
+          isUnlocked: false),
+      Achievement(
+          id: 'a4',
+          title: '10 răspunsuri',
+          description: 'Răspunde corect la 10 întrebări din quiz-uri',
+          isUnlocked: false),
+      Achievement(
+          id: 'a5',
+          title: 'Planifică lecție',
+          description: 'Adaugă o activitate în calendar',
+          isUnlocked: false),
+      Achievement(
+          id: 'a6',
+          title: 'Quiz avansat',
+          description: 'Generează și finalizează un quiz cu >5 întrebări',
+          isUnlocked: false),
+      Achievement(
+          id: 'a7',
+          title: 'PDF extins',
+          description: 'Încarcă un PDF cu >50 de pagini',
+          isUnlocked: false),
+      Achievement(
+          id: 'a8',
+          title: '100 XP',
+          description: 'Câștigă cel puțin 100 de puncte XP',
+          isUnlocked: false),
+      Achievement(
+          id: 'a9',
+          title: 'Calendar expert',
+          description: 'Adaugă 10 activități în calendar',
+          isUnlocked: false),
+      Achievement(
+          id: 'a10',
+          title: 'Feedback rapid',
+          description: 'Obține răspuns instant la o întrebare în <5 secunde',
+          isUnlocked: false),
+    ];
+
+    // Lista demo misiuni
     final allMissions = [
       ...profile.missions,
       Mission(
@@ -158,7 +278,7 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
+              // ─── Header ─────────────────────────
               Card(
                 color: Colors.white,
                 elevation: 4,
@@ -187,8 +307,7 @@ class ProfileScreen extends StatelessWidget {
                           children: [
                             Text(profile.name,
                                 style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold)),
+                                    fontSize: 22, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
                             Text(profile.email,
                                 style: const TextStyle(
@@ -207,7 +326,7 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Stat cards
+              // ─── Stat cards ────────────────────
               Row(
                 children: [
                   _statCard('Streak zile', '${profile.currentStreak}',
@@ -215,7 +334,7 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(width: 8),
                   _statCard(
                       'Crowns',
-                      profile.achievements
+                      allAchievements
                           .where((a) => a.isUnlocked)
                           .length
                           .toString(),
@@ -237,7 +356,7 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(width: 8),
                   _statCard(
                       'Badge-uri',
-                      profile.achievements
+                      allAchievements
                           .where((a) => a.isUnlocked)
                           .length
                           .toString(),
@@ -248,7 +367,7 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Achievements
+              // ─── Achievements ───────────────────
               Card(
                 color: Colors.white,
                 elevation: 4,
@@ -257,7 +376,8 @@ class ProfileScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       const Text('Realizări',
                           style: TextStyle(
@@ -266,41 +386,45 @@ class ProfileScreen extends StatelessWidget {
                       Wrap(
                         spacing: 16,
                         runSpacing: 16,
-                        children: profile.achievements
+                        children: allAchievements
                             .asMap()
                             .entries
                             .map((e) {
                           final idx = e.key;
                           final a = e.value;
                           final color = _vibrant[idx % _vibrant.length];
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              GestureDetector(
-                                onTap: a.isUnlocked
-                                    ? null
-                                    : () => prov.unlockAchievement(a.id),
-                                child: CircleAvatar(
+                          return Tooltip(
+                            message: a.description,
+                            child: Column(
+                              mainAxisSize:
+                                  MainAxisSize.min,
+                              children: [
+                                CircleAvatar(
                                   radius: 24,
                                   backgroundColor: a.isUnlocked
                                       ? color
-                                      : color.withOpacity(0.3),
-                                  child: const Icon(Icons.emoji_events,
-                                      color: Colors.white, size: 28),
+                                      : color.withOpacity(0.2),
+                                  child: Icon(
+                                    Icons.emoji_events,
+                                    color: a.isUnlocked
+                                        ? Colors.white
+                                        : color.withOpacity(0.6),
+                                    size: 28,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              SizedBox(
-                                width: 60,
-                                child: Text(a.title,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: a.isUnlocked
-                                            ? Colors.black
-                                            : Colors.grey)),
-                              ),
-                            ],
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  width: 60,
+                                  child: Text(a.title,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: a.isUnlocked
+                                              ? Colors.black
+                                              : Colors.grey)),
+                                ),
+                              ],
+                            ),
                           );
                         }).toList(),
                       ),
@@ -311,7 +435,7 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Provocări (vertical, secțiune albă)
+              // ─── Provocări ─────────────────────
               Card(
                 color: Colors.white,
                 elevation: 4,
@@ -320,7 +444,8 @@ class ProfileScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.stretch,
                     children: [
                       const Text('Provocări',
                           style: TextStyle(
@@ -332,7 +457,7 @@ class ProfileScreen extends StatelessWidget {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _buildMissionCard(
-                                m, i, () => prov.completeMission(m.id)),
+                                context, m, i, allMissions.length),
                           );
                         }),
                       ),

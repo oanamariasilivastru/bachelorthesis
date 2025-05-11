@@ -300,11 +300,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(width: 16),
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: cs.primary,
-                  child: const Icon(Icons.person_rounded, color: Colors.white),
-                ),
+                // CircleAvatar(
+                //   radius: 20,
+                //   backgroundColor: cs.primary,
+                //   child: const Icon(Icons.person_rounded, color: Colors.white),
+                // ),
                  GestureDetector(
                   onTap: () => _push(const ProfileScreen()),
                   child: CircleAvatar(
