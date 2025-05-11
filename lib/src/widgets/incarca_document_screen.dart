@@ -1,9 +1,13 @@
+// lib/src/screens/incarca_document_screen.dart
+
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+
 import '../services/auth_service.dart';
 import 'response_card.dart';
 
@@ -16,33 +20,29 @@ class IncarcaDocumentScreen extends StatefulWidget {
 
 class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
   String? _documentPath;
-  String _selectedLanguage = 'Română';
-  final TextEditingController _questionController = TextEditingController();
-
+  String _selectedLanguage = 'ro';
+  final _questionController = TextEditingController();
   String _backendResponse = '';
   String _errorMessage = '';
   bool _isLoading = false;
 
-  // Tokenul stocat după login
   String? get _token => AuthService.token;
 
   Future<void> _pickDocument() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx'],
     );
     if (result != null && result.files.single.path != null) {
-      setState(() {
-        _documentPath = result.files.single.path;
-      });
+      setState(() => _documentPath = result.files.single.path);
     }
   }
 
   Future<void> _saveDocumentRecord(String answer) async {
     final url = Uri.parse('http://127.0.0.1:5000/save_document_record');
-    // Folosim numele fișierului ca titlu (poți adapta după necesitate)
-    final String title = _documentPath?.split(Platform.pathSeparator).last ?? 'Document';
-    final recordData = {
+    final title =
+        _documentPath?.split(Platform.pathSeparator).last ?? 'Document';
+    final record = {
       'title': title,
       'file_path': _documentPath,
       'date_uploaded': DateTime.now().toIso8601String(),
@@ -50,88 +50,57 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
       'answer': answer,
       'date_asked': DateTime.now().toIso8601String(),
     };
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_token',
-        },
-        body: jsonEncode(recordData),
-      );
-
-      if (response.statusCode != 201) {
-        print("Error saving document record: ${response.body}");
-      } else {
-        print("Document record saved successfully.");
-      }
-    } catch (e) {
-      print("Exception saving document record: $e");
-    }
+    await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_token',
+      },
+      body: jsonEncode(record),
+    );
   }
 
   Future<void> _uploadDocument() async {
     if (_documentPath == null || _questionController.text.isEmpty) {
-      setState(() {
-        _errorMessage = 'Selectează un document și introdu o întrebare.';
-      });
+      setState(() => _errorMessage = 'Selectează un document și întrebare.');
       return;
     }
     if (_token == null) {
-      setState(() {
-        _errorMessage = 'Nu ești autentificat. Te rugăm să te loghezi.';
-      });
+      setState(() => _errorMessage = 'Te rugăm să te loghezi mai întâi.');
       return;
     }
     setState(() {
-      _errorMessage = '';
       _isLoading = true;
+      _errorMessage = '';
       _backendResponse = '';
     });
-
     try {
-      var uri = Uri.parse('http://127.0.0.1:5000/process_pdf');
-      var request = http.MultipartRequest('POST', uri);
-
-      // Adăugăm tokenul în header
-      request.headers['Authorization'] = 'Bearer $_token';
-
-      // Atașăm fișierul
-      request.files.add(await http.MultipartFile.fromPath(
-        'document',
-        _documentPath!,
-        contentType: MediaType('application', 'pdf'),
-      ));
-
-      // Adăugăm câmpurile formularului
-      request.fields['question'] = _questionController.text;
-      request.fields['language'] = _selectedLanguage;
-
-      // Trimitem request-ul
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-
+      final uri = Uri.parse('http://127.0.0.1:5000/process_pdf');
+      final req = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $_token'
+        ..files.add(await http.MultipartFile.fromPath(
+          'document',
+          _documentPath!,
+          contentType: MediaType('application', 'pdf'),
+        ))
+        ..fields['question'] = _questionController.text
+        ..fields['language'] = _selectedLanguage;
+      final response = await http.Response.fromStream(await req.send());
       if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
+        final data = jsonDecode(response.body);
         setState(() {
-          _backendResponse = 'Răspuns: ${data["answer"]}\nLocație: ${data["location"]}';
+          _backendResponse =
+              'Răspuns: ${data["answer"]}\nLocație: ${data["location"]}';
         });
-        // Salvează înregistrarea documentului
         await _saveDocumentRecord(data["answer"]);
       } else {
-        setState(() {
-          _errorMessage = 'Eroare de la backend: ${response.statusCode}, ${response.body}';
-        });
+        setState(() => _errorMessage =
+            'Server error ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Eroare: $e';
-      });
+      setState(() => _errorMessage = 'Eroare: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -143,144 +112,318 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ButtonStyle commonButtonStyle = ElevatedButton.styleFrom(
-      backgroundColor: Colors.deepPurple,
+    // Paletă cromatică plăcută
+    const accents = [
+      Color(0xFF4A90E2), // albastru
+      Color(0xFF50E3C2), // teal
+      Color(0xFFF5A623), // amber
+      Color(0xFF9013FE), // violet
+    ];
+    final primary = accents[0];
+    final secondary = accents[1];
+
+    final buttonStyle = ElevatedButton.styleFrom(
+      backgroundColor: primary,
       foregroundColor: Colors.white,
-      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
     );
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text("Încarcă document", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.deepPurple,
+        title: const Text('Încarcă Document',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: primary,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Center(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ─── Coloana stângă ─────────────────────────
+              Flexible(
+                flex: 2,
+                child: Column(
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: _SectionCard(
+                        icon: Icons.insert_drive_file,
+                        iconColor: primary,
+                        title: 'Document',
+                        subtitle: _documentPath == null
+                            ? 'Niciun document selectat'
+                            : _documentPath!
+                                .split(Platform.pathSeparator)
+                                .last,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.upload_file),
+                          label: Text(_documentPath == null
+                              ? 'Selectează'
+                              : 'Schimbă'),
+                          style: buttonStyle,
+                          onPressed: _pickDocument,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: _SectionCard(
+                        icon: Icons.language,
+                        iconColor: secondary,
+                        title: 'Limba documentului',
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedLanguage,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: secondary.withOpacity(0.1),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'ro', child: Text('Română')),
+                            DropdownMenuItem(value: 'en', child: Text('Engleză')),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _selectedLanguage = v!),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: _SectionCard(
+                        icon: Icons.question_answer,
+                        iconColor: primary,
+                        title: 'Întrebarea ta',
+                        child: TextField(
+                          controller: _questionController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Scrie întrebarea aici...',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_errorMessage.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withOpacity(0.1),
+                            border: Border.all(color: Colors.redAccent),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error, color: Colors.redAccent),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(_errorMessage,
+                                    style: const TextStyle(
+                                        color: Colors.redAccent,
+                                        fontWeight: FontWeight.w600)),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: ElevatedButton.icon(
+                        icon: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.cloud_upload),
+                        label: Text(
+                            _isLoading ? 'Încarcă...' : 'Generează răspuns'),
+                        style: buttonStyle,
+                        onPressed: _isLoading ? null : _uploadDocument,
+                      ),
+                    ),
+                    if (_backendResponse.isNotEmpty) ...[
+                      const SizedBox(height: 32),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child:
+                            ResponseCard(responseText: _backendResponse),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 24),
+
+              // ─── Coloana dreaptă ─────────────────────────
+              Flexible(
+                flex: 1,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 300),
+                  child: Column(
+                    children: [
+                      // Ilustrație
+                      Opacity(
+                        opacity: 0.2,
+                        child: Image.asset(
+                          'assets/images/document_illustration.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Pași numerotați „Cum funcționează?”
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Cum funcționează?',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: secondary,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Lista de pași
+                              ...[
+                                'Selectează un PDF sau DOC de pe device.',
+                                'Introdu întrebarea în câmpul dedicat.',
+                                'Apasă butonul „Generează răspuns”.',
+                              ].asMap().entries.map((entry) {
+                                final step = entry.key + 1;
+                                final text = entry.value;
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 24,
+                                        height: 24,
+                                        decoration: BoxDecoration(
+                                          color: secondary,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          '$step',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          text,
+                                          style: const TextStyle(
+                                              fontSize: 14, height: 1.3),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Widget reutilizabil pentru secțiuni cu header, subtitlu și conținut
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String? subtitle;
+  final Widget child;
+
+  const _SectionCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shadowColor: iconColor.withOpacity(0.4),
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              "Încarcă un document și pune o întrebare:",
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 20),
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(Icons.file_upload_outlined, color: Colors.deepPurple, size: 32),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        _documentPath ?? "Niciun document selectat",
-                        style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: _pickDocument,
-                      style: commonButtonStyle,
-                      child: const Text("Selectează"),
-                    ),
-                  ],
-                ),
+            Row(children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: iconColor.withOpacity(0.15),
+                child: Icon(icon, color: iconColor),
               ),
-            ),
-            const SizedBox(height: 20),
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(Icons.language_outlined, color: Colors.orangeAccent, size: 32),
-                    const SizedBox(width: 16),
-                    const Text(
-                      "Limba documentului:",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 16),
-                    DropdownButton<String>(
-                      value: _selectedLanguage,
-                      icon: const Icon(Icons.arrow_drop_down, color: Colors.deepPurple),
-                      items: const [
-                        DropdownMenuItem(value: 'Română', child: Text('Română', style: TextStyle(fontSize: 16))),
-                        DropdownMenuItem(value: 'Engleză', child: Text('Engleză', style: TextStyle(fontSize: 16))),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedLanguage = value!;
-                        });
-                      },
-                    ),
-                  ],
-                ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: iconColor)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(subtitle!,
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.black54)),
+                  ]
+                ],
               ),
-            ),
-            const SizedBox(height: 20),
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: TextField(
-                  controller: _questionController,
-                  decoration: InputDecoration(
-                    labelText: "Introdu întrebarea",
-                    labelStyle: const TextStyle(fontSize: 16),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.question_answer, color: Colors.deepPurple),
-                  ),
-                  minLines: 1,
-                  maxLines: 3,
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (_errorMessage.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.redAccent),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.redAccent, size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _errorMessage,
-                        style: const TextStyle(fontSize: 16, color: Colors.redAccent),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 20),
-            Center(
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.deepPurple)
-                  : ElevatedButton.icon(
-                      onPressed: _uploadDocument,
-                      style: commonButtonStyle,
-                      icon: const Icon(Icons.cloud_upload_outlined, size: 28),
-                      label: const Text('Generează răspuns', style: TextStyle(fontSize: 16)),
-                    ),
-            ),
-            const SizedBox(height: 20),
-            ResponseCard(responseText: _backendResponse),
+            ]),
+            const SizedBox(height: 16),
+            child,
           ],
         ),
       ),

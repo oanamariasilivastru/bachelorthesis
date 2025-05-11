@@ -11,7 +11,7 @@ class SidebarButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.isSelected = false,
+    this.isSelected = false, required MaterialAccentColor accentColor,
   }) : super(key: key);
 
   @override

@@ -230,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
+  static const _accent = Colors.deepPurpleAccent;
 
   Widget _buildSidebar(ColorScheme cs) => Container(
         width: 220,
@@ -253,21 +254,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 icon: Icons.dashboard,
                 label: 'Dashboard',
                 isSelected: true,
-                onTap: () {}),
+                onTap: () {}, accentColor: _accent,),
             SidebarButton(
                 icon: Icons.history_edu,
                 label: 'Istoric documente',
-                onTap: () => _push(const DocumentHistoryScreen())),
+                onTap: () => _push(const DocumentHistoryScreen()), accentColor: _accent,),
             SidebarButton(
                 icon: Icons.history,
                 label: 'Istoric test',
-                onTap: () => _push(const GenereazaTesteScreen())),
+                onTap: () => _push(const GenereazaTesteScreen()), accentColor: _accent,),
             SidebarButton(
                 icon: Icons.notifications_active,
                 label: 'Notificări',
-                onTap: _openUpcomingModal),
+                onTap: _openUpcomingModal, accentColor: _accent,),
             const Spacer(),
-            SidebarButton(icon: Icons.logout, label: 'Logout', onTap: () {}),
+            SidebarButton(icon: Icons.logout, label: 'Logout', onTap: () {}, accentColor: _accent,),
             const SizedBox(height: 16),
           ],
         ),

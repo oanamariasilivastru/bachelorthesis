@@ -2,13 +2,12 @@
 
 import 'dart:io';
 import 'dart:async';
-import 'package:app/src/screens/quiz_session_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:app/src/screens/quiz_session_screen.dart';
 import 'package:app/src/models/quiz_item.dart';
-import '../screens/genereaza_quiz_text_screen.dart';
 
-/// Ecran pentru generarea testelor pornind de la un PDF cu Q&A hardcodate
 class GenereazaTesteScreen extends StatefulWidget {
   const GenereazaTesteScreen({Key? key}) : super(key: key);
 
@@ -29,7 +28,6 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
   };
   String _selectedLanguage = 'ro';
 
-  /// Alege un PDF de pe dispozitiv
   Future<void> _pickPdf() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -40,185 +38,334 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
     }
   }
 
-  /// Întrebări hardcodate pentru PDF-ul de geografie (Română)
-  List<QuizItem> _getHardcodedQuizRo() {
-    return [
-      QuizItem(
-        question: 'Care este partea cea mai nordică a Carpaților Orientali?',
-        options: ['Grupa nordică', 'Grupa centrală', 'Grupa sudică', 'Carpații Meridionali'],
-        answer: 'Grupa nordică',
-      ),
-      QuizItem(
-        question: 'Din ce tipuri de roci este format șirul exterior al grupei nordice?',
-        options: ['Vulcanice', 'Sedimentare („flis“)', 'Cristaline', 'Metamorfice'],
-        answer: 'Sedimentare („flis“)',
-      ),
-      QuizItem(
-        question: 'Ce înălțime maximă atinge Vf. Pietrosu din Munții Rodnei?',
-        options: ['2100 m', '2303 m', '1954 m', '2505 m'],
-        answer: '2303 m',
-      ),
-      QuizItem(
-        question: 'În ce an a avut loc accidentul de la Cernobîl?',
-        options: ['1979', '1986', '1999', '2011'],
-        answer: '1986',
-      ),
-      QuizItem(
-        question: 'În ce unitate a Carpaților Meridionali se află Munții Bucegi și care este vârful lor maxim?',
-        options: ['Grupa Parâng – 2519 m', 'Grupa Făgăraș – 2543 m', 'Grupa Bucegi – 2505 m', 'Grupa Retezat – 2509 m'],
-        answer: 'Grupa Bucegi – 2505 m',
-      ),
-      QuizItem(
-        question: 'Ce fenomen provoacă inversiune de temperatură în depresiuni iarna?',
-        options: ['Briza de vale', 'Föhn', 'Inversiune de temperatură', 'Crivat'],
-        answer: 'Inversiune de temperatură',
-      ),
-      QuizItem(
-        question: 'Care predomină în structura geologică a Carpaților de Curbură?',
-        options: ['Roci cristaline', 'Roci sedimentare', 'Roci vulcanice', 'Roci metamorfice'],
-        answer: 'Roci sedimentare',
-      ),
-      QuizItem(
-        question: 'În ce etaje de vegetație sunt împărțiți munții?',
-        options: ['Un etaj – fag', 'Două etaje – fag și conifere + subalpin și pajiști alpine', 'Doar conifere', 'Etaj montan și mediteranean'],
-        answer: 'Două etaje – fag și conifere + subalpin și pajiști alpine',
-      ),
-      QuizItem(
-        question: 'Care este tipul principal de sol în regiunea montană?',
-        options: ['Cernoziom', 'Podzolic', 'Brun-roșcat de pădure', 'Argilos'],
-        answer: 'Brun-roșcat de pădure',
-      ),
-      QuizItem(
-        question: 'Ce subregiune include dealuri cu altitudini sub 1000 m la poalele Carpaților?',
-        options: ['Depresiunea Colinara', 'Subcarpații', 'Podisul Moldovei', 'Delta Dunării'],
-        answer: 'Subcarpații',
-      ),
-    ];
-  }
-
-  /// Întrebări hardcodate pentru articolul de NLP (English)
-  List<QuizItem> _getHardcodedQuizEn() {
-    return [
-      QuizItem(
-        question: 'Which two datasets were used to evaluate the NLP models?',
-        options: ['SQuAD and XQuAD', 'XQuAD and RoITD', 'RoITD and SQuAD', 'XQuAD and GLUE'],
-        answer: 'XQuAD and RoITD',
-      ),
-      QuizItem(
-        question: 'Which models achieved the highest F1 scores on both datasets?',
-        options: ['DistilBERT variants', 'RoBERT-small', 'bert-base-multilingual-cased/uncased', 'RoGPT2 Base/Medium'],
-        answer: 'bert-base-multilingual-cased/uncased',
-      ),
-      QuizItem(
-        question: 'What is XQuAD?',
-        options: ['A monolingual Romanian QA dataset', 'A subset of SQuAD translated in 11 languages', 'A benchmark for language generation', 'A translation tool'],
-        answer: 'A subset of SQuAD translated in 11 languages',
-      ),
-      QuizItem(
-        question: 'What kind of questions does the RoITD dataset include?',
-        options: ['Only answerable', 'Both answerable and unanswerable in IT domain', 'Only unanswerable', 'Cloze-completion'],
-        answer: 'Both answerable and unanswerable in IT domain',
-      ),
-      QuizItem(
-        question: 'Which evaluation metric balances precision and recall?',
-        options: ['Exact Match', 'Accuracy', 'F1-score', 'BLEU'],
-        answer: 'F1-score',
-      ),
-    ];
-  }
+  // TODO: Înlocuiește cu întrebările complete
+  List<QuizItem> _getHardcodedQuizRo() => [ /* … întrebări RO …*/ ];
+  List<QuizItem> _getHardcodedQuizEn() => [ /* … întrebări EN …*/ ];
 
   Future<void> _generateQuiz() async {
     if (_pdfFile == null) {
       setState(() => _errorMessage = 'Selectează un fișier PDF.');
       return;
     }
-
+    if (_timerSeconds <= 0) {
+      setState(() => _errorMessage = 'Durata trebuie să fie > 0.');
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = '';
       _quizItems = [];
     });
-
-    try {
-      // Simulează generarea cu o întârziere de 20 secunde
-      await Future.delayed(const Duration(seconds: 20));
-
-      final items = _selectedLanguage == 'ro'
+    // simulare generare
+    await Future.delayed(const Duration(seconds: 2));
+    setState(() {
+      _quizItems = (_selectedLanguage == 'ro')
           ? _getHardcodedQuizRo()
           : _getHardcodedQuizEn();
-
-      setState(() => _quizItems = items);
-    } catch (e) {
-      setState(() => _errorMessage = 'Eroare: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
+      _isLoading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    // Paletă pastel
+    const accents = [
+      Color(0xFF6C5B7B), // violet închis pastel
+      Color(0xFFC06C84), // roz coral pastel
+    ];
+    final primary = accents[0];
+    final secondary = accents[1];
+    final radius = BorderRadius.circular(16);
+
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('Teste din PDF'),
-        backgroundColor: cs.primary,
+        backgroundColor: primary,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.upload_file),
-              label: Text(
-                _pdfFile == null ? 'Încarcă PDF' : 'PDF: ${_pdfFile!.path.split('/').last}',
-              ),
-              onPressed: _isLoading ? null : _pickPdf,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _selectedLanguage,
-              decoration: InputDecoration(
-                labelText: 'Limbă',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              items: _languages.entries
-                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedLanguage = v!),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _generateQuiz,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Generează Test'),
-            ),
-            if (_errorMessage.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(_errorMessage, style: TextStyle(color: cs.error)),
-            ],
-            if (_quizItems.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => QuizSessionScreen(
-                        items: _quizItems,
-                        language: _selectedLanguage,
-                        timerSeconds: _timerSeconds,
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ─── Stânga: formular + butoane ───────────────────
+                Expanded(
+                  flex: 2,
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: radius),
+                    margin: const EdgeInsets.only(right: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // PDF picker
+                          _sectionHeader(
+                              icon: Icons.upload_file,
+                              color: primary,
+                              text: 'Încarcă PDF'),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primary,
+                              foregroundColor: Colors.white,
+                              textStyle: const TextStyle(fontSize: 18),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: radius),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            onPressed: _isLoading ? null : _pickPdf,
+                            child: Text(
+                              _pdfFile == null
+                                  ? 'Selectează fișier'
+                                  : 'PDF: ${_pdfFile!.path.split(Platform.pathSeparator).last}',
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Language selector
+                          _sectionHeader(
+                              icon: Icons.language,
+                              color: secondary,
+                              text: 'Alege limbă'),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _selectedLanguage,
+                            decoration: InputDecoration(
+                              contentPadding:
+                                  const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: radius,
+                                borderSide: BorderSide.none,
+                              ),
+                              filled: true,
+                              fillColor: secondary.withOpacity(0.1),
+                            ),
+                            dropdownColor: Colors.white,
+                            style: const TextStyle(
+                                fontSize: 16, color: Colors.black87),
+                            iconEnabledColor: secondary,
+                            items: _languages.entries
+                                .map((e) => DropdownMenuItem(
+                                      value: e.key,
+                                      child: Text(e.value),
+                                    ))
+                                .toList(),
+                            onChanged: _isLoading
+                                ? null
+                                : (v) => setState(
+                                    () => _selectedLanguage = v!),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Slider orizontal pentru timer
+                          _sectionHeader(
+                              icon: Icons.timer,
+                              color: primary,
+                              text: 'Durata test (secunde)'),
+                          const SizedBox(height: 12),
+                          Slider(
+                            value: _timerSeconds.toDouble(),
+                            min: 10,
+                            max: 300,
+                            divisions: 290,
+                            activeColor: primary,
+                            inactiveColor: primary.withOpacity(0.2),
+                            label: '$_timerSeconds s',
+                            onChanged: (value) {
+                              setState(() {
+                                _timerSeconds = value.toInt();
+                              });
+                            },
+                          ),
+                          Center(
+                            child: Text(
+                              '$_timerSeconds secunde',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: primary),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Generate button
+                          _sectionHeader(
+                              icon: Icons.playlist_add_check,
+                              color: primary,
+                              text: 'Generează Test'),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primary,
+                              foregroundColor: Colors.white,
+                              textStyle: const TextStyle(fontSize: 18),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: radius),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 16),
+                            ),
+                            onPressed: _isLoading ? null : _generateQuiz,
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white),
+                                  )
+                                : const Text('Generează'),
+                          ),
+
+                          if (_errorMessage.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Text(_errorMessage,
+                                style: TextStyle(
+                                    color: secondary, fontSize: 16)),
+                          ],
+
+                          if (_quizItems.isNotEmpty) ...[
+                            const SizedBox(height: 32),
+                            OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => QuizSessionScreen(
+                                      items: _quizItems,
+                                      language: _selectedLanguage,
+                                      timerSeconds: _timerSeconds,
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side:
+                                    BorderSide(color: primary, width: 2),
+                                foregroundColor: primary,
+                                textStyle: const TextStyle(fontSize: 18),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: radius),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 16),
+                              ),
+                              child: const Text('Începe Testul'),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  );
-                },
-                child: const Text('Începe Testul'),
-              ),
-            ],
+                  ),
+                ),
+
+                // ─── Dreapta: imagine + pași ───────────────────
+                Expanded(
+                  flex: 1,
+                  child: Column(
+                    children: [
+                      Image.asset(
+                        'assets/images/generate_tests.png',
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 24),
+                      _HowItWorksCard(color: secondary),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader({
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: color.withOpacity(0.2),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Text(text,
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color)),
+      ],
+    );
+  }
+}
+
+class _HowItWorksCard extends StatelessWidget {
+  final Color color;
+  const _HowItWorksCard({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = [
+      'Încarci PDF-ul din device.',
+      'Selectezi limba testului.',
+      'Stabilești durata în secunde.',
+      'Generezi testul și aștepți.',
+      'Începi testul apăsând butonul.',
+    ];
+
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Cum funcționează?',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: color)),
+            const SizedBox(height: 16),
+            ...steps.asMap().entries.map((e) {
+              final idx = e.key + 1;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration:
+                          BoxDecoration(color: color, shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Text('$idx',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(e.value,
+                          style: const TextStyle(fontSize: 16)),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ],
         ),
       ),
