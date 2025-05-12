@@ -3,15 +3,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:app/src/services/auth_service.dart';
 import 'package:app/src/models/quiz_item.dart';
+import 'package:app/src/services/auth_service.dart';
 import 'quiz_session_screen.dart';
 
 class GenereazaQuizTextScreen extends StatefulWidget {
   const GenereazaQuizTextScreen({Key? key}) : super(key: key);
 
   @override
-  _GenereazaQuizTextScreenState createState() =>
+  State<GenereazaQuizTextScreen> createState() =>
       _GenereazaQuizTextScreenState();
 }
 
@@ -23,11 +23,10 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
   List<QuizItem> _quizItems = [];
   int _timerSeconds = 60;
 
+  static const _backendBase = 'http://127.0.0.1:5000';
   static const Map<String, String> _languages = {
     'ro': 'Română',
     'en': 'English',
-    'es': 'Español',
-    'fr': 'Français',
   };
   String _selectedLanguage = 'ro';
   String? get _token => AuthService.token;
@@ -52,17 +51,17 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
     });
 
     try {
-      // Alege endpoint-ul în funcție de limbă
-      final path = _selectedLanguage == 'ro'
-          ? 'generate_mcq_ro'
-          : 'generate_mcq_en';
-      final uri = Uri.parse('http://127.0.0.1:5000/$path');
+      // choose the correct endpoint
+      final endpoint = _selectedLanguage == 'en'
+          ? '/generate_mcq_en'
+          : '/generate_mcq_ro';
+      final uri = Uri.parse('$_backendBase$endpoint');
 
       final res = await http.post(
         uri,
         headers: {
-          'Authorization': 'Bearer $_token',
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_token',
         },
         body: jsonEncode({
           'text': text,
@@ -76,22 +75,23 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
 
         if (raw == null) {
           setState(() =>
-              _errorMessage = data['error'] ?? 'Răspuns neașteptat.');
+              _errorMessage = data['error'] ?? 'Răspuns neașteptat de la server.');
         } else {
-          final items = raw.map((e) {
-            final m = e as Map<String, dynamic>;
-            return QuizItem(
-              question: m['question'] as String,
-              options: List<String>.from(m['options'] as List),
-              answer: m['answer'] as String,
-            );
-          }).toList(growable: false);
+          final items = raw
+              .whereType<Map<String, dynamic>>()
+              .map((m) => QuizItem(
+                    question: m['question'] as String? ?? '',
+                    options: List<String>.from(m['options'] as List? ?? []),
+                    answer: m['answer'] as String? ?? '',
+                    dateTaken: DateTime.now().toIso8601String(),
+                    language: _selectedLanguage,
+                  ))
+              .toList(growable: false);
 
           setState(() => _quizItems = items);
         }
       } else {
-        setState(
-            () => _errorMessage = 'Eroare ${res.statusCode}: ${res.body}');
+        setState(() => _errorMessage = 'Eroare ${res.statusCode}: ${res.body}');
       }
     } catch (e) {
       setState(() => _errorMessage = 'Eroare: $e');
@@ -110,17 +110,19 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quiz din Text'),
         backgroundColor: cs.primary,
         foregroundColor: cs.onPrimary,
       ),
+      backgroundColor: cs.background,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Text sursă
+            // ─── Source Text ─────────────────────────
             Card(
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
@@ -131,14 +133,15 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
                   controller: _textController,
                   maxLines: 6,
                   decoration: const InputDecoration.collapsed(
-                    hintText: 'Li​pește aici textul sursă...',
+                    hintText: 'Li​pește aici textul sursă…',
                   ),
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
 
-            // Nr întrebări + limbă
+            // ─── # Questions & Language ────────────────
             Row(
               children: [
                 Expanded(
@@ -162,19 +165,18 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
                           borderRadius: BorderRadius.circular(8)),
                     ),
                     items: _languages.entries
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(e.value),
-                            ))
+                        .map((e) =>
+                            DropdownMenuItem(value: e.key, child: Text(e.value)))
                         .toList(),
                     onChanged: (v) => setState(() => _selectedLanguage = v!),
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
 
-            // Slider timer
+            // ─── Timer Slider ──────────────────────────
             Row(
               children: [
                 const Text('Timer:'),
@@ -193,22 +195,27 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
                 ),
               ],
             ),
+
             const SizedBox(height: 8),
 
-            // Generează quiz
+            // ─── Generate Button ───────────────────────
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: cs.onPrimary,
+                        ),
                       )
                     : const Icon(Icons.refresh),
                 label: const Text('Generează Quiz'),
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: cs.primary,
+                  foregroundColor: cs.onPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
@@ -217,12 +224,13 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
               ),
             ),
 
+            // ─── Error Message ────────────────────────
             if (_errorMessage.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(_errorMessage, style: TextStyle(color: cs.error)),
             ],
 
-            // Start quiz
+            // ─── Ready Card ───────────────────────────
             if (_quizItems.isNotEmpty) ...[
               const SizedBox(height: 24),
               Card(
@@ -246,10 +254,8 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
                         width: double.infinity,
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
-                            side:
-                                BorderSide(color: cs.onSecondaryContainer),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: cs.onSecondaryContainer),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: () {
                             Navigator.of(context).push(
@@ -262,7 +268,11 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
                               ),
                             );
                           },
-                          child: const Text('Începe Quiz-ul'),
+                          child: Text(
+                            'Începe Quiz-ul',
+                            style:
+                                TextStyle(color: cs.onSecondaryContainer),
+                          ),
                         ),
                       ),
                     ],

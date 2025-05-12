@@ -14,6 +14,8 @@ import '../widgets/sidebar_button.dart';
 import '../widgets/upcoming_activities_modal.dart';
 import '../widgets/time_spent_chart.dart';
 import '../widgets/incarca_document_screen.dart';
+import '../screens/test_history_screen.dart';
+
 
 import 'chat_pdf_screen.dart';
 import 'document_history_screen.dart';
@@ -262,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             SidebarButton(
                 icon: Icons.history,
                 label: 'Istoric test',
-                onTap: () => _push(const GenereazaTesteScreen()), accentColor: _accent,),
+                onTap: () => _push(const QuizHistoryScreen()), accentColor: _accent,),
             SidebarButton(
                 icon: Icons.notifications_active,
                 label: 'Notificări',

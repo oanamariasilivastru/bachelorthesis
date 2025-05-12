@@ -1,6 +1,10 @@
 // lib/src/screens/genereaza_quiz_text_screen.dart
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:app/src/services/auth_service.dart';
 import 'package:app/src/models/quiz_item.dart';
 import 'quiz_session_screen.dart';
 
@@ -8,7 +12,8 @@ class GenereazaQuizTextScreen extends StatefulWidget {
   const GenereazaQuizTextScreen({Key? key}) : super(key: key);
 
   @override
-  State<GenereazaQuizTextScreen> createState() => _GenereazaQuizTextScreenState();
+  State<GenereazaQuizTextScreen> createState() =>
+      _GenereazaQuizTextScreenState();
 }
 
 class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
@@ -25,151 +30,7 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
   };
   String _selectedLanguage = 'ro';
 
-  /// Returnează întrebări hardcodate pentru fiecare limbă
-  List<QuizItem> _getHardcodedQuizItems(String lang, int count) {
-    if (lang == 'ro') {
-      final all = <QuizItem>[
-        QuizItem(
-          question: 'Ce tip de reacție nucleară este cel mai des folosit în centralele nucleare actuale?',
-          options: ['Fuziunea nucleară', 'Fisiunea nucleară', 'Descompunerea radioactivă', 'Combustia nucleară'],
-          answer: 'Fisiunea nucleară',
-        ),
-        QuizItem(
-          question: 'Ce element este cel mai frecvent utilizat ca combustibil nuclear?',
-          options: ['Carbon-14', 'Hidrogen-2', 'Uraniul-235', 'Plumb-208'],
-          answer: 'Uraniul-235',
-        ),
-        QuizItem(
-          question: 'Care este principalul avantaj al energiei nucleare în contextul schimbărilor climatice?',
-          options: ['Producerea rapidă a energiei', 'Absența emisiilor de dioxid de carbon', 'Costul scăzut al construcției', 'Utilizarea oxigenului ca combustibil'],
-          answer: 'Absența emisiilor de dioxid de carbon',
-        ),
-        QuizItem(
-          question: 'În ce an a avut loc accidentul nuclear de la Cernobîl?',
-          options: ['1986', '1979', '2011', '1999'],
-          answer: '1986',
-        ),
-        QuizItem(
-          question: 'Care este una dintre metodele principale de stocare a deșeurilor radioactive?',
-          options: ['Depozitarea subterană în formațiuni geologice stabile', 'Arderea lor în cuptoare speciale', 'Vânzarea ca îngrășământ', 'Eliberarea în atmosferă'],
-          answer: 'Depozitarea subterană în formațiuni geologice stabile',
-        ),
-        QuizItem(
-          question: 'Ce organizație supraveghează activitățile nucleare ale statelor membre?',
-          options: ['AIEA', 'NATO', 'ONU', 'OMC'],
-          answer: 'AIEA',
-        ),
-        QuizItem(
-          question: 'Care este o problemă de securitate asociată energiei nucleare?',
-          options: ['Proliferarea armelor nucleare', 'Poluarea fonică', 'Defrișările masive', 'Creșterea nivelului de oxigen'],
-          answer: 'Proliferarea armelor nucleare',
-        ),
-        QuizItem(
-          question: 'Ce reacție nucleară ar putea oferi mai puține deșeuri radioactive și riscuri reduse de accidente majore?',
-          options: ['Fuziunea nucleară', 'Fisiunea nucleară', 'Descompunerea radioactivă', 'Combustia nucleară'],
-          answer: 'Fuziunea nucleară',
-        ),
-        QuizItem(
-          question: 'Ce se produce în urma fisiunii nucleare, pe lângă energia termică?',
-          options: ['Neutroni liberi și produse de fisiune', 'Oxigen și apă', 'Dioxid de carbon și vapori', 'Laser și electroni'],
-          answer: 'Neutroni liberi și produse de fisiune',
-        ),
-        QuizItem(
-          question: 'De ce este importantă izolarea deșeurilor radioactive pentru perioade îndelungate?',
-          options: ['Pot rămâne periculoase mii de ani', 'Trebuie transformate în energie', 'Îmbunătățesc clima', 'Devine îngrășământ'],
-          answer: 'Pot rămâne periculoase mii de ani',
-        ),
-      ];
-      return all.take(count).toList();
-    } else {
-      final all = <QuizItem>[
-        QuizItem(
-          question: 'Into how many main branches are the Carpathian Mountains divided?',
-          options: ['2', '3', '4', '5'],
-          answer: '3',
-        ),
-        QuizItem(
-          question: 'Which three units compose the Eastern Carpathians?',
-          options: [
-            'Northern, Central, Curvature',
-            'Transylvanian, Banat, Getic',
-            'Maramureș, Făgăraș, Apuseni',
-            'Bucegi, Retezat, Parâng'
-          ],
-          answer: 'Northern, Central, Curvature',
-        ),
-        QuizItem(
-          question: 'What plateau borders the Northern Eastern Carpathians to the west?',
-          options: [
-            'Moldavian Plateau',
-            'Transylvanian Plateau',
-            'Wallachian Plain',
-            'Danubian Plain'
-          ],
-          answer: 'Transylvanian Plateau',
-        ),
-        QuizItem(
-          question: 'What are the three parallel ridges of the Northern Eastern Carpathians?',
-          options: [
-            'Flysch, crystalline, volcanic',
-            'Limestone, marble, basalt',
-            'Sedimentary, metamorphic, igneous',
-            'Dolomite, quartzite, gneiss'
-          ],
-          answer: 'Flysch, crystalline, volcanic',
-        ),
-        QuizItem(
-          question: 'What is the highest peak of the Northern Eastern Carpathians and its elevation?',
-          options: [
-            'Ciucaș – 1,954 m',
-            'Omu – 2,505 m',
-            'Pietrosu Rodnei – 2,303 m',
-            'Moldoveanu – 2,543 m'
-          ],
-          answer: 'Pietrosu Rodnei – 2,303 m',
-        ),
-        QuizItem(
-          question: 'Which gorge is highlighted in the Central Eastern Carpathians?',
-          options: ['Bicaz Gorge', 'Turda Gorge', 'Iron Gates Defile', 'Cheile Nerei'],
-          answer: 'Bicaz Gorge',
-        ),
-        QuizItem(
-          question:
-              'What is the maximum summit height in the Curvature Carpathians (Southern Eastern Carpathians)?',
-          options: ['1,800 m', '1,954 m', '2,303 m', '2,505 m'],
-          answer: '1,954 m',
-        ),
-        QuizItem(
-          question:
-              'Which massifs form Romania’s highest peaks in the Southern Carpathians?',
-          options: [
-            'Apuseni and Banat',
-            'Bucegi, Făgăraș, Parâng, Retezat–Godeanu',
-            'Maramureș–Bucovina and Moldavian–Transylvanian',
-            'Călimani and Harghita'
-          ],
-          answer: 'Bucegi, Făgăraș, Parâng, Retezat–Godeanu',
-        ),
-        QuizItem(
-          question: 'Which river does not originate in the Carpathians?',
-          options: ['Olt', 'Someș', 'Danube', 'Bistrița'],
-          answer: 'Danube',
-        ),
-        QuizItem(
-          question:
-              'Approximately how much precipitation do the Carpathians receive annually at altitude?',
-          options: [
-            'Less than 500 mm',
-            'Around 700 mm',
-            'Over 1,000 mm',
-            'Over 1,500 mm'
-          ],
-          answer: 'Over 1,000 mm',
-        ),
-      ];
-      return all.take(count).toList();
-    }
-  }
+  String? get _token => AuthService.token;
 
   Future<void> _generateQuiz() async {
     final text = _textController.text.trim();
@@ -179,6 +40,10 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
       setState(() => _errorMessage = 'Introdu textul sursă.');
       return;
     }
+    if (_token == null) {
+      setState(() => _errorMessage = 'Te rugăm să te autentifici.');
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -186,14 +51,55 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
       _quizItems = [];
     });
 
-    // Simulează generarea cu o întârziere de 20 secunde
-    await Future.delayed(const Duration(seconds: 20));
+    try {
+      // pick the right endpoint
+      final path = _selectedLanguage == 'ro'
+          ? 'generate_mcq_ro'
+          : 'generate_mcq_en';
+      final uri = Uri.parse('http://127.0.0.1:5000/$path');
 
-    final items = _getHardcodedQuizItems(_selectedLanguage, numQ);
-    setState(() {
-      _quizItems = items;
-      _isLoading = false;
-    });
+      final res = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'text': text,
+          'num_questions': numQ,
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final raw = data['questions'] as List<dynamic>?;
+
+        if (raw == null) {
+          setState(() => _errorMessage = 'Răspuns neașteptat de la server.');
+        } else {
+          final items = raw.map((e) {
+            final m = e as Map<String, dynamic>;
+            return QuizItem(
+              question: m['question'] as String? ?? '',
+              options: List<String>.from(m['options'] as List<dynamic>),
+              answer: m['answer'] as String? ?? '',
+              // assuming your QuizItem has language + dateTaken
+              language: _selectedLanguage,
+              dateTaken: DateTime.now().toIso8601String(),
+            );
+          }).toList(growable: false);
+
+          setState(() => _quizItems = items);
+        }
+      } else {
+        setState(() =>
+            _errorMessage = 'Eroare ${res.statusCode}: ${res.body}');
+      }
+    } catch (e) {
+      setState(() => _errorMessage = 'Eroare: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -205,152 +111,276 @@ class _GenereazaQuizTextScreenState extends State<GenereazaQuizTextScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    const primary = Color(0xFF009688);
+    const secondary = Color(0xFFFFB74D);
+    final radius = BorderRadius.circular(16);
+
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('Quiz din Text'),
-        backgroundColor: cs.primary,
-        foregroundColor: cs.onPrimary,
+        backgroundColor: primary,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Card(
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: TextField(
-                  controller: _textController,
-                  maxLines: 6,
-                  decoration: const InputDecoration.collapsed(
-                    hintText: 'Li​pește aici textul sursă...',
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ─── LEFT PANEL ─────────────────────────
                 Expanded(
-                  child: TextField(
-                    controller: _numQController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Nr. întrebări',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                  flex: 2,
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: radius),
+                    margin: const EdgeInsets.only(right: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _sectionHeader(
+                            icon: Icons.text_snippet,
+                            color: primary,
+                            text: 'Text Sursă',
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _textController,
+                            maxLines: 6,
+                            decoration: InputDecoration(
+                              hintText: 'Li​pește aici textul sursă…',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: radius,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          _sectionHeader(
+                            icon: Icons.format_list_numbered,
+                            color: secondary,
+                            text: 'Nr. Întrebări',
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _numQController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: '10',
+                              filled: true,
+                              fillColor: secondary.withOpacity(0.1),
+                              border: OutlineInputBorder(
+                                borderRadius: radius,
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          _sectionHeader(
+                            icon: Icons.language,
+                            color: primary,
+                            text: 'Limbă Quiz',
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _selectedLanguage,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: primary.withOpacity(0.1),
+                              border: OutlineInputBorder(
+                                borderRadius: radius,
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            items: _languages.entries.map((e) {
+                              return DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              );
+                            }).toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedLanguage = v!),
+                          ),
+                          const SizedBox(height: 24),
+                          _sectionHeader(
+                            icon: Icons.timer,
+                            color: secondary,
+                            text: 'Durata (secunde)',
+                          ),
+                          const SizedBox(height: 12),
+                          Slider(
+                            value: _timerSeconds.toDouble(),
+                            min: 0,
+                            max: 300,
+                            divisions: 30,
+                            label:
+                                _timerSeconds == 0 ? 'Fără timp' : '$_timerSeconds s',
+                            activeColor: secondary,
+                            onChanged: (v) =>
+                                setState(() => _timerSeconds = v.round()),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.refresh),
+                            label: const Text('Generează Quiz'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: radius),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            onPressed: _isLoading ? null : _generateQuiz,
+                          ),
+                          if (_errorMessage.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Text(_errorMessage,
+                                style: TextStyle(color: secondary)),
+                          ],
+                          if (_quizItems.isNotEmpty) ...[
+                            const SizedBox(height: 32),
+                            OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => QuizSessionScreen(
+                                      items: _quizItems,
+                                      language: _selectedLanguage,
+                                      timerSeconds: _timerSeconds,
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side:
+                                    BorderSide(color: secondary, width: 2),
+                                foregroundColor: secondary,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: radius),
+                              ),
+                              child: const Text('Începe Quiz-ul'),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+
+                // ─── RIGHT PANEL ────────────────────────
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedLanguage,
-                    decoration: InputDecoration(
-                      labelText: 'Limbă',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    items: _languages.entries
-                        .map((e) =>
-                            DropdownMenuItem(value: e.key, child: Text(e.value)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _selectedLanguage = v!),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('Timer:'),
-                Expanded(
-                  child: Slider(
-                    value: _timerSeconds.toDouble(),
-                    min: 0,
-                    max: 300,
-                    divisions: 30,
-                    label:
-                        _timerSeconds == 0 ? 'Fără timp' : '$_timerSeconds s',
-                    onChanged: (v) => setState(() => _timerSeconds = v.round()),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.refresh),
-                label: const Text('Generează Quiz'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: _isLoading ? null : _generateQuiz,
-              ),
-            ),
-            if (_errorMessage.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(_errorMessage, style: TextStyle(color: cs.error)),
-            ],
-            if (_quizItems.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Card(
-                color: cs.secondaryContainer,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  flex: 1,
                   child: Column(
                     children: [
-                      Text(
-                        'Quiz-ul este gata! Ai ${_quizItems.length} întrebări.',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: cs.onSecondaryContainer),
+                      Image.asset(
+                        'assets/images/quiz_context.png',
+                        fit: BoxFit.contain,
                       ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: cs.onSecondaryContainer),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => QuizSessionScreen(
-                                  items: _quizItems,
-                                  language: _selectedLanguage,
-                                  timerSeconds: _timerSeconds,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text('Începe Quiz-ul'),
-                        ),
-                      ),
+                      const SizedBox(height: 24),
+                      _HowItWorksCard(color: primary),
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader({
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) =>
+      Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: color.withOpacity(0.2),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Text(text,
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+        ],
+      );
+}
+
+class _HowItWorksCard extends StatelessWidget {
+  final Color color;
+  const _HowItWorksCard({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = [
+      'Li​pești textul sursă.',
+      'Setezi numărul de întrebări.',
+      'Alegi limba quiz-ului.',
+      'Glisezi pentru durata dorită.',
+      'Apăși „Generează Quiz”.',
+    ];
+    return Card(
+      elevation: 3,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Cum funcționează?',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: color)),
+            const SizedBox(height: 16),
+            ...steps.asMap().entries.map((e) {
+              final idx = e.key + 1;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                          color: color, shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Text('$idx',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(e.value,
+                          style: const TextStyle(fontSize: 16)),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ],
         ),
       ),

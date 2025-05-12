@@ -45,10 +45,9 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
     final record = {
       'title': title,
       'file_path': _documentPath,
-      'date_uploaded': DateTime.now().toIso8601String(),
       'question': _questionController.text,
       'answer': answer,
-      'date_asked': DateTime.now().toIso8601String(),
+      'language': _selectedLanguage,          // <<< limbă trimisă aici
     };
     await http.post(
       url,
@@ -62,7 +61,7 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
 
   Future<void> _uploadDocument() async {
     if (_documentPath == null || _questionController.text.isEmpty) {
-      setState(() => _errorMessage = 'Selectează un document și întrebare.');
+      setState(() => _errorMessage = 'Selectează un document și o întrebare.');
       return;
     }
     if (_token == null) {
@@ -84,18 +83,21 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
           contentType: MediaType('application', 'pdf'),
         ))
         ..fields['question'] = _questionController.text
-        ..fields['language'] = _selectedLanguage;
+        ..fields['language'] = _selectedLanguage;  // <<< și aici
+
       final response = await http.Response.fromStream(await req.send());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final answer = data["answer"] as String? ?? '';
         setState(() {
           _backendResponse =
-              'Răspuns: ${data["answer"]}\nLocație: ${data["location"]}';
+              'Răspuns: $answer\nLocație: ${data["location"]}';
         });
-        await _saveDocumentRecord(data["answer"]);
+        // Salvăm și istoricul cu limbă
+        await _saveDocumentRecord(answer);
       } else {
         setState(() => _errorMessage =
-            'Server error ${response.statusCode}: ${response.body}');
+            'Eroare server ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
       setState(() => _errorMessage = 'Eroare: $e');
@@ -112,318 +114,253 @@ class _IncarcaDocumentScreenState extends State<IncarcaDocumentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Paletă cromatică plăcută
     const accents = [
-      Color(0xFF4A90E2), // albastru
-      Color(0xFF50E3C2), // teal
-      Color(0xFFF5A623), // amber
-      Color(0xFF9013FE), // violet
+      Color(0xFF4A90E2),
+      Color(0xFF50E3C2),
     ];
     final primary = accents[0];
     final secondary = accents[1];
-
-    final buttonStyle = ElevatedButton.styleFrom(
-      backgroundColor: primary,
-      foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
-      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-    );
+    final radius = BorderRadius.circular(16);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Încarcă Document',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Încarcă Document'),
         backgroundColor: primary,
         elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         child: Center(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ─── Coloana stângă ─────────────────────────
-              Flexible(
-                flex: 2,
-                child: Column(
-                  children: [
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 600),
-                      child: _SectionCard(
-                        icon: Icons.insert_drive_file,
-                        iconColor: primary,
-                        title: 'Document',
-                        subtitle: _documentPath == null
-                            ? 'Niciun document selectat'
-                            : _documentPath!
-                                .split(Platform.pathSeparator)
-                                .last,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.upload_file),
-                          label: Text(_documentPath == null
-                              ? 'Selectează'
-                              : 'Schimbă'),
-                          style: buttonStyle,
-                          onPressed: _pickDocument,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 600),
-                      child: _SectionCard(
-                        icon: Icons.language,
-                        iconColor: secondary,
-                        title: 'Limba documentului',
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedLanguage,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: secondary.withOpacity(0.1),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Formular
+                Expanded(
+                  flex: 2,
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: radius),
+                    margin: const EdgeInsets.only(right: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _sectionHeader(
+                              icon: Icons.insert_drive_file,
+                              color: primary,
+                              text: 'Document'),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.upload_file),
+                            label: Text(_documentPath == null
+                                ? 'Selectează fișier'
+                                : _documentPath!
+                                    .split(Platform.pathSeparator)
+                                    .last),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: radius),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              textStyle: const TextStyle(fontSize: 16),
+                            ),
+                            onPressed: _isLoading ? null : _pickDocument,
+                          ),
+                          const SizedBox(height: 24),
+                          _sectionHeader(
+                              icon: Icons.language,
+                              color: secondary,
+                              text: 'Limba documentului'),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _selectedLanguage,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: secondary.withOpacity(0.1),
+                              border: OutlineInputBorder(
+                                borderRadius: radius,
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            style: const TextStyle(
+                                fontSize: 16, color: Colors.black87),
+                            iconEnabledColor: secondary,
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'ro', child: Text('Română')),
+                              DropdownMenuItem(
+                                  value: 'en', child: Text('Engleză')),
+                            ],
+                            onChanged:
+                                _isLoading ? null : (v) => setState(() {
+                                      _selectedLanguage = v!;
+                                    }),
+                          ),
+                          const SizedBox(height: 24),
+                          _sectionHeader(
+                              icon: Icons.question_answer,
+                              color: primary,
+                              text: 'Întrebarea ta'),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _questionController,
+                            maxLines: 3,
+                            style: const TextStyle(
+                                fontSize: 16, color: Colors.black87),
+                            decoration: InputDecoration(
+                              hintText: 'Scrie întrebarea aici...',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: radius,
+                              ),
                             ),
                           ),
-                          items: const [
-                            DropdownMenuItem(value: 'ro', child: Text('Română')),
-                            DropdownMenuItem(value: 'en', child: Text('Engleză')),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.cloud_upload),
+                            label: Text(
+                                _isLoading ? 'Încarcă...' : 'Generează răspuns'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: radius),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              textStyle: const TextStyle(fontSize: 16),
+                            ),
+                            onPressed: _isLoading ? null : _uploadDocument,
+                          ),
+                          if (_errorMessage.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Text(_errorMessage,
+                                style: TextStyle(
+                                    color: secondary, fontSize: 14)),
                           ],
-                          onChanged: (v) =>
-                              setState(() => _selectedLanguage = v!),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 600),
-                      child: _SectionCard(
-                        icon: Icons.question_answer,
-                        iconColor: primary,
-                        title: 'Întrebarea ta',
-                        child: TextField(
-                          controller: _questionController,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            hintText: 'Scrie întrebarea aici...',
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (_errorMessage.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 600),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withOpacity(0.1),
-                            border: Border.all(color: Colors.redAccent),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error, color: Colors.redAccent),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(_errorMessage,
-                                    style: const TextStyle(
-                                        color: Colors.redAccent,
-                                        fontWeight: FontWeight.w600)),
-                              )
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 600),
-                      child: ElevatedButton.icon(
-                        icon: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.cloud_upload),
-                        label: Text(
-                            _isLoading ? 'Încarcă...' : 'Generează răspuns'),
-                        style: buttonStyle,
-                        onPressed: _isLoading ? null : _uploadDocument,
-                      ),
-                    ),
-                    if (_backendResponse.isNotEmpty) ...[
-                      const SizedBox(height: 32),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 600),
-                        child:
+                          if (_backendResponse.isNotEmpty) ...[
+                            const SizedBox(height: 32),
                             ResponseCard(responseText: _backendResponse),
+                          ],
+                        ],
                       ),
-                    ],
-                  ],
+                    ),
+                  ),
                 ),
-              ),
 
-              const SizedBox(width: 24),
-
-              // ─── Coloana dreaptă ─────────────────────────
-              Flexible(
-                flex: 1,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 300),
+                // Ilustrație + pași
+                Expanded(
+                  flex: 1,
                   child: Column(
                     children: [
-                      // Ilustrație
-                      Opacity(
-                        opacity: 0.2,
-                        child: Image.asset(
-                          'assets/images/document_illustration.png',
-                          fit: BoxFit.contain,
-                        ),
+                      Image.asset(
+                        'assets/images/document_illustration.png',
+                        fit: BoxFit.contain,
                       ),
-                      const SizedBox(height: 32),
-
-                      // Pași numerotați „Cum funcționează?”
-                      Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 4,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Cum funcționează?',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: secondary,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              // Lista de pași
-                              ...[
-                                'Selectează un PDF sau DOC de pe device.',
-                                'Introdu întrebarea în câmpul dedicat.',
-                                'Apasă butonul „Generează răspuns”.',
-                              ].asMap().entries.map((entry) {
-                                final step = entry.key + 1;
-                                final text = entry.value;
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        width: 24,
-                                        height: 24,
-                                        decoration: BoxDecoration(
-                                          color: secondary,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          '$step',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          text,
-                                          style: const TextStyle(
-                                              fontSize: 14, height: 1.3),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ],
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 24),
+                      _HowItWorksCard(color: secondary),
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _sectionHeader({
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: color.withOpacity(0.2),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Text(text,
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
 }
 
-/// Widget reutilizabil pentru secțiuni cu header, subtitlu și conținut
-class _SectionCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String? subtitle;
-  final Widget child;
-
-  const _SectionCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    this.subtitle,
-    required this.child,
-  });
+class _HowItWorksCard extends StatelessWidget {
+  final Color color;
+  const _HowItWorksCard({required this.color});
 
   @override
   Widget build(BuildContext context) {
+    final steps = [
+      'Încarci PDF sau DOC de pe device.',
+      'Selectezi limba documentului.',
+      'Introduci întrebarea dorită.',
+      'Apăși „Generează răspuns”.',
+      'Vizualizezi răspunsul și istoricul.',
+    ];
+
     return Card(
-      shadowColor: iconColor.withOpacity(0.4),
-      elevation: 6,
+      elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: iconColor.withOpacity(0.15),
-                child: Icon(icon, color: iconColor),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: iconColor)),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 4),
-                    Text(subtitle!,
-                        style: const TextStyle(
-                            fontSize: 14, color: Colors.black54)),
-                  ]
-                ],
-              ),
-            ]),
+            Text('Cum funcționează?',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: color)),
             const SizedBox(height: 16),
-            child,
+            ...steps.asMap().entries.map((e) {
+              final idx = e.key + 1;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Text('$idx',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(e.value, style: const TextStyle(fontSize: 16)),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ],
         ),
       ),
