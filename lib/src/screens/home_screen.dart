@@ -1,25 +1,23 @@
 // lib/src/screens/home_screen.dart
 // ignore_for_file: cascade_invocations
 
-import 'package:app/src/widgets/genereaza_teste_screen.dart' show GenereazaTesteScreen;
+import 'package:app/src/models/activity.dart';
+import 'package:app/src/models/quiz_history_item.dart';
+import 'package:app/src/screens/chat_pdf_screen.dart';
+import 'package:app/src/screens/document_history_screen.dart';
+import 'package:app/src/screens/genereaza_quiz_text_screen.dart';
+import 'package:app/src/screens/login_screen.dart';
+import 'package:app/src/screens/profile_screen.dart';
+import 'package:app/src/screens/test_history_screen.dart';
+import 'package:app/src/services/api_service.dart';
+import 'package:app/src/services/auth_service.dart';
+import 'package:app/src/widgets/genereaza_teste_screen.dart';
+import 'package:app/src/widgets/incarca_document_screen.dart';
+import 'package:app/src/widgets/sidebar_button.dart';
+import 'package:app/src/widgets/time_spent_chart.dart';
+import 'package:app/src/widgets/upcoming_activities_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-
-import 'package:app/src/models/activity.dart';
-import 'package:app/src/services/api_service.dart';
-import 'package:app/src/screens/profile_screen.dart';
-
-
-import '../widgets/sidebar_button.dart';
-import '../widgets/upcoming_activities_modal.dart';
-import '../widgets/time_spent_chart.dart';
-import '../widgets/incarca_document_screen.dart';
-import '../screens/test_history_screen.dart';
-
-
-import 'chat_pdf_screen.dart';
-import 'document_history_screen.dart';
-import 'genereaza_quiz_text_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -36,12 +34,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final Stopwatch _stopwatch = Stopwatch();
   Duration _accumulatedTime = Duration.zero;
 
+  late Future<List<QuizHistoryItem>> _recentQuizzesFuture;
+
+  // Internal model for “Provocări”
+  final List<_Challenge> _challenges = [
+    _Challenge('Generează quiz din text', Icons.text_snippet),
+    _Challenge('Încarcă document', Icons.upload_file_rounded),
+    _Challenge('Conversează document', Icons.chat_bubble_outline),
+    _Challenge('Rezolvă 3 quiz-uri', Icons.question_answer),
+  ];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _stopwatch.start();
     _fetchActivities();
+    _recentQuizzesFuture = _api.fetchQuizHistory();
   }
 
   @override
@@ -84,15 +93,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _persistActivity(
-      {required Activity act, required DateTime onDay}) async {
+  Future<void> _persistActivity({
+    required Activity act,
+    required DateTime onDay,
+  }) async {
     final d = DateTime(onDay.year, onDay.month, onDay.day);
     final dateStr =
         '${d.year.toString().padLeft(4, '0')}-'
         '${d.month.toString().padLeft(2, '0')}-'
         '${d.day.toString().padLeft(2, '0')}';
     await _api.createActivity(
-        date: dateStr, title: act.title, colorValue: act.color.value);
+      date: dateStr,
+      title: act.title,
+      colorValue: act.color.value,
+    );
     setState(() {
       _activities.putIfAbsent(d, () => []).add(act);
     });
@@ -184,7 +198,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       barrierDismissible: true,
       builder: (_) => Dialog(
         insetPadding: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
           child: UpcomingActivitiesModal(
@@ -202,7 +217,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
       body: Row(
         children: [
@@ -232,8 +246,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
-  static const _accent = Colors.deepPurpleAccent;
 
+  /// ─── SIDEBAR ───────────────────────────────────────────────────────────
   Widget _buildSidebar(ColorScheme cs) => Container(
         width: 220,
         color: cs.surface,
@@ -253,29 +267,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 16),
             SidebarButton(
-                icon: Icons.dashboard,
-                label: 'Dashboard',
-                isSelected: true,
-                onTap: () {}, accentColor: _accent,),
+              icon: Icons.dashboard,
+              label: 'Dashboard',
+              isSelected: true,
+              onTap: () {},
+              accentColor: cs.primary,
+            ),
             SidebarButton(
-                icon: Icons.history_edu,
-                label: 'Istoric documente',
-                onTap: () => _push(const DocumentHistoryScreen()), accentColor: _accent,),
+              icon: Icons.history_edu,
+              label: 'Istoric documente',
+              onTap: () => _push(const DocumentHistoryScreen()),
+              accentColor: cs.primary,
+            ),
             SidebarButton(
-                icon: Icons.history,
-                label: 'Istoric test',
-                onTap: () => _push(const QuizHistoryScreen()), accentColor: _accent,),
+              icon: Icons.history,
+              label: 'Istoric test',
+              onTap: () => _push(const QuizHistoryScreen()),
+              accentColor: cs.primary,
+            ),
             SidebarButton(
-                icon: Icons.notifications_active,
-                label: 'Notificări',
-                onTap: _openUpcomingModal, accentColor: _accent,),
+              icon: Icons.notifications_active,
+              label: 'Notificări',
+              onTap: _openUpcomingModal,
+              accentColor: cs.primary,
+            ),
             const Spacer(),
-            SidebarButton(icon: Icons.logout, label: 'Logout', onTap: () {}, accentColor: _accent,),
+            SidebarButton(
+              icon: Icons.logout,
+              label: 'Logout',
+               onTap: () {
+                  AuthService.logout();
+
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                );
+            },
+              accentColor: cs.primary,
+            ),
             const SizedBox(height: 16),
           ],
         ),
       );
 
+  /// ─── TOP BAR ───────────────────────────────────────────────────────────
   Widget _buildTopBar(ColorScheme cs) => Container(
         height: 70,
         color: cs.surface,
@@ -303,12 +338,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // CircleAvatar(
-                //   radius: 20,
-                //   backgroundColor: cs.primary,
-                //   child: const Icon(Icons.person_rounded, color: Colors.white),
-                // ),
-                 GestureDetector(
+                GestureDetector(
                   onTap: () => _push(const ProfileScreen()),
                   child: CircleAvatar(
                     radius: 20,
@@ -322,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       );
 
-  /// Aici am schimbat doar culorile, pentru un look mai viu:
+  /// ─── QUICK ACTIONS ────────────────────────────────────────────────────
   Widget _buildQuickRow(ColorScheme cs) => Row(
         children: [
           Expanded(
@@ -363,9 +393,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
 
+  /// ─── CALENDAR & CHART ─────────────────────────────────────────────────
   Widget _buildCalendarAndChart() => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Calendar panel
           Expanded(
             flex: 2,
             child: Container(
@@ -397,7 +429,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         todayDecoration: BoxDecoration(
                             color: Colors.deepPurple, shape: BoxShape.circle),
                         selectedDecoration: BoxDecoration(
-                            color: Colors.purpleAccent, shape: BoxShape.circle),
+                            color: Colors.purpleAccent,
+                            shape: BoxShape.circle),
                       ),
                       eventLoader: _forDay,
                       calendarBuilders: CalendarBuilders(
@@ -429,15 +462,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Activități pentru ${_selectedDay!.toLocal().toString().split(' ')[0]}:',
+                          'Activități pentru ${_selectedDay!.toLocal().toIso8601String().split('T')[0]}:',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
-                        ..._forDay(_selectedDay!).map((a) => ListTile(
-                              leading:
-                                  Icon(Icons.circle, size: 12, color: a.color),
-                              title: Text(a.title),
-                            )),
+                        ..._forDay(_selectedDay!)
+                            .map((a) => ListTile(
+                                  leading: Icon(Icons.circle,
+                                      size: 12, color: a.color),
+                                  title: Text(a.title),
+                                )),
                       ],
                     ),
                 ],
@@ -445,6 +479,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(width: 16),
+          // Time spent chart
           Expanded(
             flex: 3,
             child: Container(
@@ -467,6 +502,130 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
 
+  /// ─── BOTTOM ROW: Quiz panels + Provocări ─────────────────────────────
+  Widget _buildBottomRow() {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Ultimele 3 Quiz-uri
+        Expanded(
+          flex: 3,
+          child: Container(
+            height: 250,
+            padding: const EdgeInsets.all(16),
+            decoration: _whiteCard,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Ultimele 3 Quiz-uri',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: FutureBuilder<List<QuizHistoryItem>>(
+                    future: _recentQuizzesFuture,
+                    builder: (ctx, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                            child: CircularProgressIndicator());
+                      }
+                      if (snap.hasError) {
+                        return Center(child: Text('Eroare: ${snap.error}'));
+                      }
+                      final all = snap.data ?? [];
+                      final last3 = all.take(3).toList();
+                      if (last3.isEmpty) {
+                        return const Center(child: Text('Nu există quiz-uri.'));
+                      }
+                      return ListView.separated(
+                        itemCount: last3.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final q = last3[i];
+                          final dt = q.dateTaken.toLocal();
+                          final fmt =
+                              '${dt.day.toString().padLeft(2, '0')}/'
+                              '${dt.month.toString().padLeft(2, '0')}/'
+                              '${dt.year}';
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text('Quiz #${q.id}'),
+                            subtitle:
+                                Text('$fmt • ${q.questions.length} întrebări'),
+                            trailing:
+                                const Icon(Icons.arrow_forward_ios, size: 16),
+                            onTap: () => _push(const QuizHistoryScreen()),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // Provocări noi
+        Expanded(
+          flex: 2,
+          child: Container(
+            height: 250,
+            padding: const EdgeInsets.all(16),
+            decoration: _whiteCard,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Provocări noi',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _challenges.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final c = _challenges[i];
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: c.done ? Colors.green[50] : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: CheckboxListTile(
+                          title: Text(c.title),
+                          secondary: Icon(c.icon, color: cs.primary),
+                          value: c.done,
+                          activeColor: cs.primary,
+                          onChanged: (v) => setState(() => c.done = v!),
+                          controlAffinity:
+                              ListTileControlAffinity.leading,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ─── COMMON CARD DECORATION ─────────────────────────────────────────
+  BoxDecoration get _whiteCard => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))
+        ],
+      );
+
+  /// ─── CALENDAR MARKERS ────────────────────────────────────────────────
   Widget _buildMarkers(List<Activity> ev) => Positioned(
         bottom: 1,
         child: Row(
@@ -486,94 +645,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               .toList(),
         ),
       );
-
-  Widget _buildBottomRow() => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 3,
-            child: Container(
-              height: 250,
-              padding: const EdgeInsets.all(16),
-              decoration: _whiteCard,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Top Scorer',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
-                      children: const [
-                        _TopScorerTile(
-                            name: 'Brandon Harris',
-                            score: '98.7%',
-                            color: Colors.deepPurple),
-                        _TopScorerTile(
-                            name: 'Charlie Sims',
-                            score: '96.4%',
-                            color: Colors.pink),
-                        _TopScorerTile(
-                            name: 'Mila Rose',
-                            score: '95.2%',
-                            color: Colors.orange),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: Container(
-              height: 250,
-              padding: const EdgeInsets.all(16),
-              decoration: _whiteCard,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('School Fee Structure',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: Container(
-                      color: Colors.grey[100],
-                      child:
-                          const Center(child: Text('Fee Structure / Chart')),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
-
-  BoxDecoration get _whiteCard => BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))
-        ],
-      );
 }
 
+/// Internal model for “Provocări”
+class _Challenge {
+  final String title;
+  final IconData icon;
+  bool done;
+  _Challenge(this.title, this.icon, [this.done = false]);
+}
+
+/// Reusable action card
 class _ActionCard extends StatelessWidget {
   final Color color;
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _ActionCard(
-      {required this.color,
-      required this.icon,
-      required this.label,
-      required this.onTap,
-      Key? key})
-      : super(key: key);
+  const _ActionCard({
+    required this.color,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    Key? key,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -599,22 +693,5 @@ class _ActionCard extends StatelessWidget {
             ],
           ),
         ),
-      );
-}
-
-class _TopScorerTile extends StatelessWidget {
-  final String name;
-  final String score;
-  final Color color;
-  const _TopScorerTile(
-      {required this.name, required this.score, required this.color});
-
-  @override
-  Widget build(BuildContext context) => ListTile(
-        leading: CircleAvatar(
-            backgroundColor: color,
-            child: const Icon(Icons.person_rounded, color: Colors.white)),
-        title: Text(name),
-        subtitle: Text(score),
       );
 }

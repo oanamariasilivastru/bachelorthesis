@@ -1,3 +1,5 @@
+// lib/src/screens/login_screen.dart
+
 import 'package:flutter/material.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
@@ -11,34 +13,36 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _emailController    = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  void _login() async {
+  Future<void> _login() async {
     setState(() => _isLoading = true);
+
     final token = await AuthService.login(
-      _emailController.text,
-      _passwordController.text,
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
     );
+
+    setState(() => _isLoading = false);
 
     if (token != null) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       _showError('Login failed. Please check your credentials.');
     }
-    setState(() => _isLoading = false);
   }
 
   void _showError(String message) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Login Error'),
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('OK'),
           ),
         ],
@@ -47,9 +51,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Fundal gradient pentru întreg ecranul
+      // Fundal gradient pe întreg ecranul
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -65,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo sau miniatura aplicației
+                  // Logo circular
                   Container(
                     width: 100,
                     height: 100,
@@ -80,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  // Card pentru formularul de login
+                  // Card cu formularul de login
                   Card(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -92,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         vertical: 32,
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
                             "Welcome Back",
@@ -111,13 +122,16 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          // Folosim iconițe pentru un plus de estetică:
+
+                          // Câmp email
                           CustomTextField(
                             controller: _emailController,
                             hintText: 'Email',
                             icon: Icons.email,
                           ),
                           const SizedBox(height: 16),
+
+                          // Câmp parolă
                           CustomTextField(
                             controller: _passwordController,
                             hintText: 'Password',
@@ -125,6 +139,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             icon: Icons.lock,
                           ),
                           const SizedBox(height: 24),
+
+                          // Buton login sau indicator de încărcare
                           _isLoading
                               ? const Center(child: CircularProgressIndicator())
                               : CustomButton(
@@ -136,6 +152,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Link spre ecranul de înregistrare
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
