@@ -9,16 +9,20 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController    = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  String _errorMessage = '';
 
   Future<void> _login() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
 
     final token = await AuthService.login(
       email: _emailController.text.trim(),
@@ -30,24 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (token != null) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
-      _showError('Login failed. Please check your credentials.');
+      setState(() => _errorMessage = 'Autentificare eșuată. Verifică datele.');
     }
-  }
-
-  void _showError(String message) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Login Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -59,127 +47,151 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // same accent palette as document screen
+    const primary   = Color(0xFF4A90E2);
+    const secondary = Color(0xFF50E3C2);
+    final radius = BorderRadius.circular(16);
+
     return Scaffold(
-      // Fundal gradient pe întreg ecranul
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      body: Stack(
+        children: [
+          // 1) Full-screen background image
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/login.png',
+              fit: BoxFit.cover,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo circular
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 60,
-                      color: Colors.deepPurple,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Card cu formularul de login
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 8,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 32,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Text(
-                            "Welcome Back",
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.deepPurple,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            "Please sign in to continue",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
 
-                          // Câmp email
-                          CustomTextField(
-                            controller: _emailController,
-                            hintText: 'Email',
-                            icon: Icons.email,
-                          ),
-                          const SizedBox(height: 16),
+          // 2) Optional translucent overlay for contrast
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.3)),
+          ),
 
-                          // Câmp parolă
-                          CustomTextField(
-                            controller: _passwordController,
-                            hintText: 'Password',
-                            obscureText: true,
-                            icon: Icons.lock,
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Buton login sau indicator de încărcare
-                          _isLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : CustomButton(
-                                  text: 'Login',
-                                  onPressed: _login,
-                                ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Link spre ecranul de înregistrare
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+          // 3) Login form
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Column(
                     children: [
-                      const Text(
-                        "Don't have an account?",
-                        style: TextStyle(color: Colors.white),
+                      // logo
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.lock_outline, size: 60, color: primary),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushReplacementNamed(context, '/register');
-                        },
-                        child: const Text(
-                          "Sign up",
-                          style: TextStyle(
-                            color: Colors.white,
-                            decoration: TextDecoration.underline,
+                      const SizedBox(height: 24),
+
+                      // Card formular login
+                      Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(borderRadius: radius),
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // header
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: secondary.withOpacity(0.2),
+                                    child: Icon(Icons.person, color: secondary, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Autentificare',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // email
+                              CustomTextField(
+                                controller: _emailController,
+                                hintText: 'Email',
+                                icon: Icons.email_outlined,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // parolă
+                              CustomTextField(
+                                controller: _passwordController,
+                                hintText: 'Parolă',
+                                icon: Icons.lock_outline,
+                                obscureText: true,
+                              ),
+                              const SizedBox(height: 24),
+
+                              // error message
+                              if (_errorMessage.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: Text(
+                                    _errorMessage,
+                                    style: TextStyle(color: secondary),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+
+                              // buton login
+                              ElevatedButton.icon(
+                                icon: _isLoading
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.login),
+                                label: Text(_isLoading ? 'Se încarcă...' : 'Login'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primary,
+                                  shape: RoundedRectangleBorder(borderRadius: radius),
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                ),
+                                onPressed: _isLoading ? null : _login,
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // link register
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text('Nu ai cont?', style: TextStyle(color: Colors.black54)),
+                                  TextButton(
+                                    onPressed: () => Navigator.pushReplacementNamed(context, '/register'),
+                                    child: const Text('Înscrie-te'),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

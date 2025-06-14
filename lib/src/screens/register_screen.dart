@@ -1,3 +1,5 @@
+// lib/src/screens/register_screen.dart
+
 import 'package:flutter/material.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
@@ -7,208 +9,240 @@ class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
 
   @override
-  _RegisterScreenState createState() => _RegisterScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Câmpuri suplimentare: nume complet și număr de telefon
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
-  
+  final _nameCtrl     = TextEditingController();
+  final _emailCtrl    = TextEditingController();
+  final _phoneCtrl    = TextEditingController();
+  final _passCtrl     = TextEditingController();
+  final _confirmCtrl  = TextEditingController();
+
   bool _isLoading = false;
+  String _errorMessage = '';
 
-  void _register() async {
-    if (_passwordController.text != _confirmPasswordController.text) {
-      _showError('Passwords do not match.');
+  Future<void> _register() async {
+    if (_passCtrl.text != _confirmCtrl.text) {
+      setState(() => _errorMessage = 'Parolele nu se potrivesc.');
+      return;
+    }
+    if (_nameCtrl.text.trim().isEmpty) {
+      setState(() => _errorMessage = 'Completează numele complet.');
       return;
     }
 
-    // Validare suplimentară: verifică dacă numele este completat
-    if (_nameController.text.trim().isEmpty) {
-      _showError('Please enter your full name.');
-      return;
-    }
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
 
-    setState(() => _isLoading = true);
-
-    // Presupunând că AuthService.register a fost actualizat pentru a primi și nume și telefon:
-    final result = await AuthService.register(
-      fullName: _nameController.text,
-      email: _emailController.text,
-      phone: _phoneController.text,
-      password: _passwordController.text,
+    final ok = await AuthService.register(
+      fullName: _nameCtrl.text.trim(),
+      email:    _emailCtrl.text.trim(),
+      phone:    _phoneCtrl.text.trim(),
+      password: _passCtrl.text,
     );
-
-    if (result) {
-      Navigator.pushReplacementNamed(context, '/login');
-    } else {
-      _showError('Registration failed. Please try again.');
-    }
 
     setState(() => _isLoading = false);
-  }
 
-  void _showError(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Registration Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    if (ok) {
+      Navigator.pushReplacementNamed(context, '/login');
+    } else {
+      setState(() => _errorMessage = 'Înregistrare eșuată. Încearcă din nou.');
+    }
   }
 
   @override
   void dispose() {
-    // Asigură-te că eliberezi controllerele la închiderea widget-ului
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _passCtrl.dispose();
+    _confirmCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // same palette as login
+    const primary   = Color(0xFF4A90E2);
+    const secondary = Color(0xFF50E3C2);
+    final radius = BorderRadius.circular(16);
+
     return Scaffold(
-      // Poți păstra AppBar-ul sau adăuga un design personalizat de fundal, similar cu ecranul de login
-      appBar: AppBar(
-        title: const Text('Register'),
-        backgroundColor: Colors.deepPurple,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Container superior: design similar cu Login
-              Container(
-                height: 280,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.purpleAccent, Colors.deepPurpleAccent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(80),
-                  ),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.person_add,
-                      size: 60,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              // Formularul de înregistrare extins
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Create an Account",
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Sign up to get started!",
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Câmp pentru nume complet
-                    CustomTextField(
-                      controller: _nameController,
-                      hintText: 'Full Name',
-                      icon: Icons.person,
-                    ),
-                    const SizedBox(height: 16),
-                    // Câmp pentru email
-                    CustomTextField(
-                      controller: _emailController,
-                      hintText: 'Email',
-                      icon: Icons.email,
-                    ),
-                    const SizedBox(height: 16),
-                    // Câmp pentru număr de telefon (opțional)
-                    CustomTextField(
-                      controller: _phoneController,
-                      hintText: 'Phone Number',
-                      icon: Icons.phone,
-                    ),
-                    const SizedBox(height: 16),
-                    // Câmp pentru parolă
-                    CustomTextField(
-                      controller: _passwordController,
-                      hintText: 'Password',
-                      obscureText: true,
-                      icon: Icons.lock,
-                    ),
-                    const SizedBox(height: 16),
-                    // Câmp pentru confirmarea parolei
-                    CustomTextField(
-                      controller: _confirmPasswordController,
-                      hintText: 'Confirm Password',
-                      obscureText: true,
-                      icon: Icons.lock_outline,
-                    ),
-                    const SizedBox(height: 24),
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : CustomButton(
-                            text: 'Sign up',
-                            onPressed: _register,
-                          ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text("Already have an account?"),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/login');
-                          },
-                          child: const Text("Login"),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      body: Stack(
+        children: [
+          // 1) Background
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/login.png',
+              fit: BoxFit.cover,
+            ),
           ),
-        ),
+          // 2) Dark overlay
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.3)),
+          ),
+          // 3) Form
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Column(
+                    children: [
+                      // top circle icon
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [secondary, primary],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 8,
+                              offset: Offset(0,4),
+                            )
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.person_add,
+                          size: 60,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // registration card
+                      Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(borderRadius: radius),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 32),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // header
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: secondary.withOpacity(0.2),
+                                    child: Icon(Icons.person, color: secondary),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Înregistrează-te',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+
+                              // full name
+                              CustomTextField(
+                                controller: _nameCtrl,
+                                hintText: 'Nume complet',
+                                icon: Icons.person_outline,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // email
+                              CustomTextField(
+                                controller: _emailCtrl,
+                                hintText: 'Email',
+                                icon: Icons.email_outlined,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // phone
+                              CustomTextField(
+                                controller: _phoneCtrl,
+                                hintText: 'Telefon',
+                                icon: Icons.phone_outlined,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // password
+                              CustomTextField(
+                                controller: _passCtrl,
+                                hintText: 'Parolă',
+                                icon: Icons.lock_outline,
+                                obscureText: true,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // confirm password
+                              CustomTextField(
+                                controller: _confirmCtrl,
+                                hintText: 'Confirmă parola',
+                                icon: Icons.lock,
+                                obscureText: true,
+                              ),
+                              const SizedBox(height: 24),
+
+                              // error
+                              if (_errorMessage.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: Text(
+                                    _errorMessage,
+                                    style: TextStyle(color: secondary),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+
+                              // register button
+                              _isLoading
+                                  ? const Center(child: CircularProgressIndicator())
+                                  : CustomButton(
+                                      text: 'Sign up',
+                                      onPressed: _register,
+                                    ),
+
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    'Ai deja cont?',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pushReplacementNamed(
+                                            context, '/login'),
+                                    child: const Text(
+                                      'Login',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          decoration: TextDecoration.underline),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

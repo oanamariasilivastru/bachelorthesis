@@ -1,158 +1,163 @@
 // lib/src/services/api_service.dart
-
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
-import 'package:app/src/services/auth_service.dart';
-import 'package:app/src/models/user_profile.dart';
-import 'package:app/src/models/quiz_history_item.dart';
+import 'auth_service.dart';
+import '../models/user_profile.dart';
+import '../models/quiz_history_item.dart';
 
-/// Wrapper peste toate apelurile HTTP către backend-ul Flask.
-/// Toate metodele aruncă [Exception] cu mesaj detaliat când codul de răspuns
-/// nu este cel așteptat, pentru a fi prins de UI (FutureBuilder / bloc etc.).
 class ApiService {
-  static const String _baseUrl = 'http://127.0.0.1:5000';
+  /*--------------- singleton ---------------*/
+  ApiService._internal();
+  static final ApiService _instance = ApiService._internal();
+  factory ApiService() => _instance;
 
-  /// Token-ul JWT obţinut la login (poate fi gol dacă nu ești autentificat).
-  String get _authToken => AuthService.token ?? '';
+  /*--------------- config ---------------*/
+  final String _baseUrl = AuthService.baseUrl;
 
-  /* ------------------------------------------------------------------------ */
-  /*  ACTIVITĂŢI                                                             */
-  /* ------------------------------------------------------------------------ */
+  String get _jwt => AuthService.token ?? '';
 
-  /// Creează o nouă activitate (POST /activities → 201 on success).
+  /* Headers JSON (folosite la toate request-urile JSON) */
+  Map<String, String> get _jsonHeaders => {
+        'Content-Type': 'application/json',
+        if (_jwt.isNotEmpty) 'Authorization': 'Bearer $_jwt',
+      };
+
+  /* Headers doar cu auth (pentru Multipart etc.) */
+  Map<String, String> get _authHeaders =>
+      _jwt.isEmpty ? {} : {'Authorization': 'Bearer $_jwt'};
+
+
   Future<void> createActivity({
     required String date,
     required String title,
     required int colorValue,
   }) async {
-    final url = Uri.parse('$_baseUrl/activities');
-    final response = await http.post(
-      url,
-      headers: _defaultHeaders,
-      body: jsonEncode({
-        'date': date,
-        'title': title,
-        'color': colorValue,
-      }),
+    final res = await http.post(
+      Uri.parse('$_baseUrl/activities'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'date': date, 'title': title, 'color': colorValue}),
     );
 
-    if (response.statusCode != 201) {
-      throw Exception('Eroare la crearea activităţii: ${response.body}');
+    if (res.statusCode != 201) {
+      throw Exception('createActivity → ${res.statusCode}: ${res.body}');
     }
   }
 
-  /// Preia toate activităţile (GET /activities → 200).
   Future<List<Map<String, dynamic>>> fetchActivities() async {
-    final url = Uri.parse('$_baseUrl/activities');
-    final response = await http.get(url, headers: _defaultHeaders);
+    final res = await http.get(
+      Uri.parse('$_baseUrl/activities'),
+      headers: _jsonHeaders,
+    );
 
-    if (response.statusCode != 200) {
-      throw Exception('Eroare la încărcarea activităţilor: ${response.body}');
+    if (res.statusCode != 200) {
+      throw Exception('fetchActivities → ${res.statusCode}: ${res.body}');
     }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return (data['activities'] as List<dynamic>).cast<Map<String, dynamic>>();
+    return (jsonDecode(res.body)['activities'] as List<dynamic>)
+        .cast<Map<String, dynamic>>();
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  QUIZ                                                                   */
-  /* ------------------------------------------------------------------------ */
-
-  /// Generează un quiz pe baza unui text.
-  /// [language] trebuie să fie 'ro' sau 'en'.
   Future<http.Response> generateQuizFromText({
     required String text,
     required int numQuestions,
-    required String language,
+    required String language, // 'ro' | 'en'
   }) async {
-    final path = language.toLowerCase() == 'en' ? '/generate_mcq_en' : '/generate_mcq';
-    final url = Uri.parse('$_baseUrl$path');
+    final path =
+        language.toLowerCase() == 'ro' ? '/generate_mcq_ro' : '/generate_mcq_en';
 
-    final response = await http.post(
-      url,
-      headers: _defaultHeaders,
-      body: jsonEncode({
-        'text': text,
-        'num_questions': numQuestions,
-      }),
+    final res = await http.post(
+      Uri.parse('$_baseUrl$path'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'text': text, 'num_questions': numQuestions}),
     );
 
-    if (response.statusCode != 200) {
-      throw Exception('Eroare la generarea quiz‑ului (${response.statusCode}): ${response.body}');
+    if (res.statusCode != 200) {
+      throw Exception(
+          'generateQuizFromText → ${res.statusCode}: ${res.body}');
     }
-    return response;
+    return res;
   }
 
-  /// Preia istoricul de quiz‑uri ca [http.Response] brut.
-  /// Poate fi util pentru debug sau dacă vrei să procesezi manual datele.
-  Future<http.Response> fetchQuizHistoryRaw() async {
-    final url = Uri.parse('$_baseUrl/test_records');
-    final response = await http.get(url, headers: _defaultHeaders);
+  Future<http.Response> generateQuizFromPdf({
+    required File pdf,
+    required int numQuestions,
+    required String language, // 'ro' | 'en'
+  }) async {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_baseUrl/generate_test'),
+    )
+      ..headers.addAll(_authHeaders)
+      ..fields['language'] = language
+      ..fields['num_questions'] = numQuestions.toString()
+      ..files.add(await http.MultipartFile.fromPath(
+        'document',
+        pdf.path,
+        contentType: MediaType('application', 'pdf'),
+      ));
 
-    if (response.statusCode != 200) {
-      throw Exception('Eroare la încărcarea istoricului quiz‑urilor: ${response.body}');
+    final streamRes =
+        await req.send().timeout(const Duration(minutes: 5), onTimeout: () {
+      req.finalize();
+      throw const SocketException('Upload PDF timeout');
+    });
+
+    final res = await http.Response.fromStream(streamRes);
+
+    if (res.statusCode != 200) {
+      throw Exception('generateQuizFromPdf → ${res.statusCode}: ${res.body}');
     }
-    return response;
+    return res;
   }
 
-  /// Preia istoricul de quiz‑uri şi îl converteşte în modele [QuizHistoryItem].
   Future<List<QuizHistoryItem>> fetchQuizHistory() async {
-    final res = await fetchQuizHistoryRaw();
+    final res = await http.get(
+      Uri.parse('$_baseUrl/test_records'),
+      headers: _jsonHeaders,
+    );
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final raw = data['quiz_history'] as List<dynamic>? ?? [];
+    if (res.statusCode != 200) {
+      throw Exception('fetchQuizHistory → ${res.statusCode}: ${res.body}');
+    }
 
-    return raw
+    return (jsonDecode(res.body)['quiz_history'] as List<dynamic>)
         .whereType<Map<String, dynamic>>()
         .map(QuizHistoryItem.fromJson)
         .toList();
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  PROFIL & GAMIFICARE                                                    */
-  /* ------------------------------------------------------------------------ */
 
-  /// Preia profilul utilizatorului.
   Future<UserProfile> fetchUserProfile() async {
-    final url = Uri.parse('$_baseUrl/profile');
-    final response = await http.get(url, headers: _defaultHeaders);
-
-    if (response.statusCode != 200) {
-      throw Exception('Eroare la încărcarea profilului: ${response.body}');
+    final res = await http.get(
+      Uri.parse('$_baseUrl/profile'),
+      headers: _jsonHeaders,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('fetchUserProfile → ${res.statusCode}: ${res.body}');
     }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return UserProfile.fromJson(data);
+    return UserProfile.fromJson(jsonDecode(res.body));
   }
 
-  /// Deblochează un achievement.
-  Future<void> unlockAchievement(String achievementId) async {
-    final url = Uri.parse('$_baseUrl/achievements/$achievementId/unlock');
-    final response = await http.post(url, headers: _defaultHeaders);
-
-    if (response.statusCode != 200) {
-      throw Exception('Eroare la deblocarea realizării ($achievementId): ${response.body}');
-    }
-  }
-
-  /// Marchează o misiune ca finalizată.
-  Future<void> completeMission(String missionId) async {
-    final url = Uri.parse('$_baseUrl/missions/$missionId/complete');
-    final response = await http.post(url, headers: _defaultHeaders);
-
-    if (response.statusCode != 200) {
-      throw Exception('Eroare la finalizarea misiunii ($missionId): ${response.body}');
+  Future<void> unlockAchievement(String id) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/achievements/$id/unlock'),
+      headers: _authHeaders,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('unlockAchievement → ${res.statusCode}: ${res.body}');
     }
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  HELPERS                                                                */
-  /* ------------------------------------------------------------------------ */
-
-  /// Header-ele comune tuturor request‑urilor.
-  Map<String, String> get _defaultHeaders => {
-        'Authorization': 'Bearer $_authToken',
-        'Content-Type': 'application/json',
-      }..removeWhere((_, v) => v.isEmpty);
+  Future<void> completeMission(String id) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/missions/$id/complete'),
+      headers: _authHeaders,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('completeMission → ${res.statusCode}: ${res.body}');
+    }
+  }
 }

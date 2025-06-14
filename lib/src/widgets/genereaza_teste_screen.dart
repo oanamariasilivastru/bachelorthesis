@@ -1,12 +1,16 @@
 // lib/src/screens/genereaza_teste_screen.dart
-
-import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:app/src/screens/quiz_session_screen.dart';
-import 'package:app/src/models/quiz_item.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+
+import '../models/quiz_item.dart';
+import '../services/auth_service.dart';
+import '../screens/quiz_session_screen.dart';
 
 class GenereazaTesteScreen extends StatefulWidget {
   const GenereazaTesteScreen({Key? key}) : super(key: key);
@@ -16,65 +20,133 @@ class GenereazaTesteScreen extends StatefulWidget {
 }
 
 class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
-  File? _pdfFile;
-  bool _isLoading = false;
-  String _errorMessage = '';
-  List<QuizItem> _quizItems = [];
-  int _timerSeconds = 60;
+  /* ------------------------------------------------------------------
+   * Configurare locală
+   * ---------------------------------------------------------------- */
+  static const _backend = 'http://127.0.0.1:5000'; // ← schimbă dacă rulezi altundeva
 
+  /// Limbi suportate de backend (cheie = cod, valoare = label în UI)
   static const Map<String, String> _languages = {
     'ro': 'Română',
     'en': 'English',
   };
+
+  /* ------------------------------------------------------------------
+   * State
+   * ---------------------------------------------------------------- */
+  File? _pdfFile;
+  final _numQController = TextEditingController(text: '3');
+
+  bool _isLoading = false;
+  String _errorMessage = '';
+  List<QuizItem> _quizItems = [];
+
+  /// limba selectată (default ro)
   String _selectedLanguage = 'ro';
 
+  /// timp pentru fiecare întrebare (slider)
+  int _timerSeconds = 60;
+
+  /* ------------------------------------------------------------------
+   * Pick PDF
+   * ---------------------------------------------------------------- */
   Future<void> _pickPdf() async {
-    final result = await FilePicker.platform.pickFiles(
+    final res = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
-    if (result != null && result.files.single.path != null) {
-      setState(() => _pdfFile = File(result.files.single.path!));
+    if (res != null && res.files.single.path != null) {
+      setState(() => _pdfFile = File(res.files.single.path!));
     }
   }
 
-  // TODO: Înlocuiește cu întrebările complete
-  List<QuizItem> _getHardcodedQuizRo() => [ /* … întrebări RO …*/ ];
-  List<QuizItem> _getHardcodedQuizEn() => [ /* … întrebări EN …*/ ];
-
+  /* ------------------------------------------------------------------
+   * Send request către backend și generează quiz-ul
+   * ---------------------------------------------------------------- */
   Future<void> _generateQuiz() async {
+    final numQ = int.tryParse(_numQController.text) ?? 0;
     if (_pdfFile == null) {
-      setState(() => _errorMessage = 'Selectează un fișier PDF.');
-      return;
+      return setState(() => _errorMessage = 'Selectează un fișier PDF.');
     }
-    if (_timerSeconds <= 0) {
-      setState(() => _errorMessage = 'Durata trebuie să fie > 0.');
-      return;
+    if (numQ <= 0) {
+      return setState(() => _errorMessage = 'Numărul de întrebări trebuie să fie > 0.');
     }
+    final token = AuthService.token;
+    if (token == null) {
+      return setState(() => _errorMessage = 'Trebuie să fii autentificat.');
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = '';
-      _quizItems = [];
+      _quizItems.clear();
     });
-    // simulare generare
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() {
-      _quizItems = (_selectedLanguage == 'ro')
-          ? _getHardcodedQuizRo()
-          : _getHardcodedQuizEn();
-      _isLoading = false;
-    });
+
+    try {
+      // 1️⃣  Formăm cererea multipart
+      final uri = Uri.parse('$_backend/generate_test');
+      final req = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $token'
+        ..fields['language']      = _selectedLanguage         // ← limbă trimisă backend-ului
+        ..fields['num_questions'] = numQ.toString()
+        ..files.add(
+          await http.MultipartFile.fromPath(
+            'document',
+            _pdfFile!.path,
+            contentType: MediaType('application', 'pdf'),
+          ),
+        );
+
+      // 2️⃣  Trimitem și primim răspunsul complet
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
+
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final raw = body['test'] as List<dynamic>?;
+
+        if (raw == null) {
+          setState(() => _errorMessage =
+              body['error'] ?? 'Răspuns neașteptat de la server.');
+        } else {
+          // mapăm obiectele în QuizItem
+          final items = raw
+              .whereType<Map<String, dynamic>>()
+              .map((m) => QuizItem(
+                    question : m['question'] as String? ?? '',
+                    options  : List<String>.from(m['distractors'] ?? []),
+                    answer   : m['correct_answer'] as String? ?? '',
+                    dateTaken: DateTime.now().toIso8601String(),
+                    language : _selectedLanguage,
+                  ))
+              .toList(growable: false);
+
+          setState(() => _quizItems = items);
+        }
+      } else {
+        setState(() => _errorMessage =
+            'Eroare ${res.statusCode}: ${res.body}');
+      }
+    } catch (e) {
+      setState(() => _errorMessage = 'Eroare: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  /* ------------------------------------------------------------------
+   * UI
+   * ---------------------------------------------------------------- */
+  @override
+  void dispose() {
+    _numQController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Paletă pastel
-    const accents = [
-      Color(0xFF6C5B7B), // violet închis pastel
-      Color(0xFFC06C84), // roz coral pastel
-    ];
-    final primary = accents[0];
-    final secondary = accents[1];
+    const primary = Color(0xFF6C5B7B);
+    const secondary = Color(0xFFC06C84);
     final radius = BorderRadius.circular(16);
 
     return Scaffold(
@@ -92,7 +164,7 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ─── Stânga: formular + butoane ───────────────────
+                /* --------------------- FORMULĂR --------------------- */
                 Expanded(
                   flex: 2,
                   child: Card(
@@ -104,122 +176,83 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // PDF picker
-                          _sectionHeader(
-                              icon: Icons.upload_file,
-                              color: primary,
-                              text: 'Încarcă PDF'),
+                          _sectionHeader('Încarcă PDF', Icons.upload_file, primary),
                           const SizedBox(height: 12),
                           ElevatedButton(
+                            onPressed: _isLoading ? null : _pickPdf,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primary,
                               foregroundColor: Colors.white,
-                              textStyle: const TextStyle(fontSize: 18),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: radius),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: radius),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
-                            onPressed: _isLoading ? null : _pickPdf,
-                            child: Text(
-                              _pdfFile == null
-                                  ? 'Selectează fișier'
-                                  : 'PDF: ${_pdfFile!.path.split(Platform.pathSeparator).last}',
-                            ),
+                            child: Text(_pdfFile == null
+                                ? 'Selectează fișier'
+                                : 'PDF: ${_pdfFile!.path.split(Platform.pathSeparator).last}'),
                           ),
                           const SizedBox(height: 24),
 
-                          // Language selector
-                          _sectionHeader(
-                              icon: Icons.language,
-                              color: secondary,
-                              text: 'Alege limbă'),
+                          _sectionHeader('Număr întrebări', Icons.format_list_numbered, primary),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _numQController,
+                            keyboardType: TextInputType.number,
+                            decoration: _inputDecoration(secondary, radius, 'Ex: 5'),
+                          ),
+                          const SizedBox(height: 24),
+
+                          _sectionHeader('Limbă', Icons.language, secondary),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
                             value: _selectedLanguage,
-                            decoration: InputDecoration(
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
-                              border: OutlineInputBorder(
-                                borderRadius: radius,
-                                borderSide: BorderSide.none,
-                              ),
-                              filled: true,
-                              fillColor: secondary.withOpacity(0.1),
-                            ),
-                            dropdownColor: Colors.white,
-                            style: const TextStyle(
-                                fontSize: 16, color: Colors.black87),
-                            iconEnabledColor: secondary,
                             items: _languages.entries
                                 .map((e) => DropdownMenuItem(
                                       value: e.key,
                                       child: Text(e.value),
                                     ))
                                 .toList(),
+                            decoration: _inputDecoration(secondary, radius, null),
                             onChanged: _isLoading
                                 ? null
-                                : (v) => setState(
-                                    () => _selectedLanguage = v!),
+                                : (v) => setState(() => _selectedLanguage = v!),
                           ),
                           const SizedBox(height: 24),
 
-                          // Slider orizontal pentru timer
-                          _sectionHeader(
-                              icon: Icons.timer,
-                              color: primary,
-                              text: 'Durata test (secunde)'),
+                          _sectionHeader('Durata (secunde)', Icons.timer, primary),
                           const SizedBox(height: 12),
                           Slider(
                             value: _timerSeconds.toDouble(),
                             min: 10,
                             max: 300,
                             divisions: 290,
-                            activeColor: primary,
-                            inactiveColor: primary.withOpacity(0.2),
                             label: '$_timerSeconds s',
-                            onChanged: (value) {
-                              setState(() {
-                                _timerSeconds = value.toInt();
-                              });
-                            },
+                            activeColor: primary,
+                            onChanged: (v) =>
+                                setState(() => _timerSeconds = v.round()),
                           ),
                           Center(
-                            child: Text(
-                              '$_timerSeconds secunde',
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: primary),
-                            ),
+                            child: Text('$_timerSeconds secunde',
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                           const SizedBox(height: 24),
 
-                          // Generate button
-                          _sectionHeader(
-                              icon: Icons.playlist_add_check,
-                              color: primary,
-                              text: 'Generează Test'),
+                          _sectionHeader('Generează Test', Icons.playlist_add_check, primary),
                           const SizedBox(height: 12),
                           ElevatedButton(
+                            onPressed: _isLoading ? null : _generateQuiz,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primary,
                               foregroundColor: Colors.white,
-                              textStyle: const TextStyle(fontSize: 18),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: radius),
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: radius),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
-                            onPressed: _isLoading ? null : _generateQuiz,
                             child: _isLoading
                                 ? const SizedBox(
-                                    height: 24,
                                     width: 24,
+                                    height: 24,
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white),
+                                        strokeWidth: 2, color: Colors.white),
                                   )
                                 : const Text('Generează'),
                           ),
@@ -234,27 +267,22 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
                           if (_quizItems.isNotEmpty) ...[
                             const SizedBox(height: 32),
                             OutlinedButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => QuizSessionScreen(
-                                      items: _quizItems,
-                                      language: _selectedLanguage,
-                                      timerSeconds: _timerSeconds,
-                                    ),
-                                  ),
-                                );
-                              },
                               style: OutlinedButton.styleFrom(
-                                side:
-                                    BorderSide(color: primary, width: 2),
+                                side: BorderSide(color: primary, width: 2),
                                 foregroundColor: primary,
-                                textStyle: const TextStyle(fontSize: 18),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: radius),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: radius),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
                               ),
+                              onPressed: () {
+                                Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => QuizSessionScreen(
+                                    items: _quizItems,
+                                    language: _selectedLanguage,
+                                    timerSeconds: _timerSeconds,
+                                  ),
+                                ));
+                              },
                               child: const Text('Începe Testul'),
                             ),
                           ],
@@ -264,17 +292,14 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
                   ),
                 ),
 
-                // ─── Dreapta: imagine + pași ───────────────────
+                /* --------------------- Coloană secundară (imagine + paşi) --------------------- */
                 Expanded(
                   flex: 1,
                   child: Column(
                     children: [
-                      Image.asset(
-                        'assets/images/generate_tests.png',
-                        fit: BoxFit.contain,
-                      ),
+                      Image.asset('assets/images/generate_tests.png'),
                       const SizedBox(height: 24),
-                      _HowItWorksCard(color: secondary),
+                      const _HowItWorksCard(color: secondary),
                     ],
                   ),
                 ),
@@ -286,47 +311,51 @@ class _GenereazaTesteScreenState extends State<GenereazaTesteScreen> {
     );
   }
 
-  Widget _sectionHeader({
-    required IconData icon,
-    required Color color,
-    required String text,
-  }) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: color.withOpacity(0.2),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Text(text,
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color)),
-      ],
-    );
-  }
+  /* Utilitare UI -------------------------------------------------------------- */
+  InputDecoration _inputDecoration(
+          Color fill, BorderRadius radius, String? hint) =>
+      InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: fill.withOpacity(0.1),
+        border:
+            OutlineInputBorder(borderRadius: radius, borderSide: BorderSide.none),
+      );
+
+  Widget _sectionHeader(String txt, IconData icn, Color col) => Row(
+        children: [
+          CircleAvatar(
+              radius: 18,
+              backgroundColor: col.withOpacity(0.2),
+              child: Icon(icn, color: col)),
+          const SizedBox(width: 12),
+          Text(txt,
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold, color: col)),
+        ],
+      );
 }
 
+/* ------------------------------------------------------------------
+ * Card explicativ (nemodificat faţă de versiunea anterioară)
+ * ---------------------------------------------------------------- */
 class _HowItWorksCard extends StatelessWidget {
   final Color color;
   const _HowItWorksCard({required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final steps = [
+    const steps = [
       'Încarci PDF-ul din device.',
       'Selectezi limba testului.',
+      'Stabilești numărul de întrebări.',
       'Stabilești durata în secunde.',
-      'Generezi testul și aștepți.',
-      'Începi testul apăsând butonul.',
+      'Generezi testul și începi.',
     ];
 
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      margin: const EdgeInsets.symmetric(vertical: 8),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -334,38 +363,28 @@ class _HowItWorksCard extends StatelessWidget {
           children: [
             Text('Cum funcționează?',
                 style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: color)),
+                    fontSize: 20, fontWeight: FontWeight.bold, color: color)),
             const SizedBox(height: 16),
             ...steps.asMap().entries.map((e) {
               final idx = e.key + 1;
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration:
-                          BoxDecoration(color: color, shape: BoxShape.circle),
-                      alignment: Alignment.center,
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: color,
                       child: Text('$idx',
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold)),
+                              color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(e.value,
-                          style: const TextStyle(fontSize: 16)),
-                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(e.value)),
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

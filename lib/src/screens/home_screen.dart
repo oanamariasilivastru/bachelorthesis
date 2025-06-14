@@ -1,9 +1,6 @@
-// lib/src/screens/home_screen.dart
-// ignore_for_file: cascade_invocations
 
 import 'package:app/src/models/activity.dart';
 import 'package:app/src/models/quiz_history_item.dart';
-import 'package:app/src/screens/chat_pdf_screen.dart';
 import 'package:app/src/screens/document_history_screen.dart';
 import 'package:app/src/screens/genereaza_quiz_text_screen.dart';
 import 'package:app/src/screens/login_screen.dart';
@@ -36,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   late Future<List<QuizHistoryItem>> _recentQuizzesFuture;
 
-  // Internal model for “Provocări”
+  // Model intern pentru „Provocări”
   final List<_Challenge> _challenges = [
     _Challenge('Generează quiz din text', Icons.text_snippet),
     _Challenge('Încarcă document', Icons.upload_file_rounded),
@@ -258,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               color: cs.primary,
               alignment: Alignment.center,
               child: const Text(
-                'Smart Dashboard',
+                'Tablou de bord Smart',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -268,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 16),
             SidebarButton(
               icon: Icons.dashboard,
-              label: 'Dashboard',
+              label: 'Tablou de bord',
               isSelected: true,
               onTap: () {},
               accentColor: cs.primary,
@@ -281,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             SidebarButton(
               icon: Icons.history,
-              label: 'Istoric test',
+              label: 'Istoric teste',
               onTap: () => _push(const QuizHistoryScreen()),
               accentColor: cs.primary,
             ),
@@ -294,15 +291,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const Spacer(),
             SidebarButton(
               icon: Icons.logout,
-              label: 'Logout',
-               onTap: () {
-                  AuthService.logout();
-
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
+              label: 'Deconectare',
+              onTap: () {
+                AuthService.logout();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
                 );
-            },
+              },
               accentColor: cs.primary,
             ),
             const SizedBox(height: 16),
@@ -316,37 +312,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         color: cs.surface,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            const Text('Welcome to Smart',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Row(
-              children: [
-                SizedBox(
-                  width: 200,
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search...',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      filled: true,
-                      fillColor: cs.background,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+            SizedBox(
+              width: 200,
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Caută...',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: cs.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
                   ),
                 ),
-                const SizedBox(width: 16),
-                GestureDetector(
-                  onTap: () => _push(const ProfileScreen()),
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: cs.primary,
-                    child: const Icon(Icons.person_rounded, color: Colors.white),
-                  ),
-                ),
-              ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: () => _push(const ProfileScreen()),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: cs.primary,
+                child: const Icon(Icons.person_rounded, color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -375,15 +365,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(width: 16),
           Expanded(
             child: _ActionCard(
-              color: Colors.orangeAccent,
-              icon: Icons.chat_bubble_outline,
-              label: 'Conversează document',
-              onTap: () => _push(const ChatWithPdfScreen()),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _ActionCard(
               color: Colors.greenAccent,
               icon: Icons.text_snippet,
               label: 'Quiz din text',
@@ -397,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildCalendarAndChart() => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Calendar panel
+          // Panou Calendar
           Expanded(
             flex: 2,
             child: Container(
@@ -406,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Calendar & Attendance',
+                  const Text('Calendar și prezență',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
@@ -450,10 +431,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Activities Notification'),
+                      const Text('Notificări activități'),
                       TextButton(
                           onPressed: _openUpcomingModal,
-                          child: const Text('View all')),
+                          child: const Text('Vezi tot')),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -479,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(width: 16),
-          // Time spent chart
+          // Grafic activități
           Expanded(
             flex: 3,
             child: Container(
@@ -488,7 +469,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Activity Chart',
+                  const Text('Grafic activități',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
@@ -502,14 +483,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
 
-  /// ─── BOTTOM ROW: Quiz panels + Provocări ─────────────────────────────
+  /// ─── RÂND DE JOS: Quiz + Provocări ────────────────────────────────────
   Widget _buildBottomRow() {
     final cs = Theme.of(context).colorScheme;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Ultimele 3 Quiz-uri
+        // Ultimele 3 quiz-uri
         Expanded(
           flex: 3,
           child: Container(
@@ -519,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Ultimele 3 Quiz-uri',
+                const Text('Ultimele 3 quiz-uri',
                     style:
                         TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
@@ -616,7 +597,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// ─── COMMON CARD DECORATION ─────────────────────────────────────────
+  /// ─── CARD DECORATION COMUN ────────────────────────────────────────────
   BoxDecoration get _whiteCard => BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -625,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
 
-  /// ─── CALENDAR MARKERS ────────────────────────────────────────────────
+  /// ─── MARKERE CALENDAR ────────────────────────────────────────────────
   Widget _buildMarkers(List<Activity> ev) => Positioned(
         bottom: 1,
         child: Row(
@@ -647,7 +628,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
 }
 
-/// Internal model for “Provocări”
+/// Model intern pentru „Provocări”
 class _Challenge {
   final String title;
   final IconData icon;
@@ -655,7 +636,7 @@ class _Challenge {
   _Challenge(this.title, this.icon, [this.done = false]);
 }
 
-/// Reusable action card
+/// Card reutilizabil pentru acțiuni rapide
 class _ActionCard extends StatelessWidget {
   final Color color;
   final IconData icon;
